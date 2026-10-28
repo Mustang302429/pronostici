@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pronostici – Ramo 1 + Ramo 2</title>
+<meta name="theme-color" content="#0d1411">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Pronostici</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab on" data-view="partite" role="tab">Partite</button>
+      <button class="tab" data-view="verifica" role="tab">Verifica</button>
+      <button class="tab" data-view="info" role="tab">Info</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="v-partite" class="view on">
+    <div class="head">
+      <h1>Prossime partite</h1>
+      <p class="meta" id="agg">Caricamento…</p>
+    </div>
+    <div class="filters">
+      <div class="days" id="days" aria-label="Giorni"></div>
+      <div class="row">
+        <select id="comp" aria-label="Competizione"><option value="">Tutte le competizioni</option></select>
+        <select id="ord" aria-label="Ordina">
+          <option value="data">Ordina per orario</option>
+          <option value="forte">Ordina per esito più probabile</option>
+          <option value="assenze">Ordina per effetto assenze</option>
+          <option value="disaccordo">Ordina per disaccordo col mercato</option>
+        </select>
+        <input id="q" type="search" placeholder="Cerca squadra" aria-label="Cerca squadra">
+        <label class="chk"><input type="checkbox" id="alta"> Solo affidabilità alta</label>
+      </div>
+    </div>
+    <div id="lista" class="lista"></div>
+  </section>
+
+  <section id="v-verifica" class="view">
+    <div class="head"><h1>Verifica</h1><p class="meta">Quanto ci prende davvero il sistema</p></div>
+    <h2>Pronostici emessi e verificati</h2>
+    <div id="verifica"></div>
+    <h2>Backtest stagione 2025/26 (solo statistica)</h2>
+    <p class="note">Ogni partita prevista usando solo i dati disponibili prima del calcio d'inizio.</p>
+    <div id="backtest"></div>
+  </section>
+
+  <section id="v-info" class="view">
+    <div class="head"><h1>Come funziona</h1></div>
+    <div class="prose">
+      <h2>Ramo 1 – statistica</h2>
+      <p>Risultati dal 2022 di Premier League, Liga, Serie A, Bundesliga, Ligue 1, Belgio, Olanda e Portogallo, più Champions, Europa e Conference League. Ogni squadra ha una forza d'attacco e una di difesa; le partite recenti pesano di più. Il livello dei campionati è stimato dagli scontri nelle coppe europee. Gli xG, quando disponibili, contano per il 40%.</p>
+      <h2>Ramo 2 – il presente</h2>
+      <p>Per ogni partita si leggono infortuni, squalifiche e formazioni probabili o ufficiali. Ogni giocatore pesa in base al valore di mercato e al voto stagionale. Se mancano titolari in attacco, i gol attesi della squadra scendono; se mancano in difesa, salgono quelli dell'avversario. Correzione massima ±25%. La formazione probabile pesa a metà, quella ufficiale per intero.</p>
+      <h2>Come leggere una partita</h2>
+      <p><b>Le barre 1-X-2</b> e i mercati sono già corretti dal ramo 2. <b>Effetto assenze</b> mostra quanto il presente ha spostato le probabilità. <b>Disaccordo col mercato</b> compare quando sistema e bookmaker differiscono di almeno 8 punti: è un segnale per controllare le notizie. <b>Affidabilità</b> è alta quando entrambe le squadre hanno storico nei campionati coperti.</p>
+      <h2>Limiti onesti</h2>
+      <p>Sono probabilità, non certezze. Il modello è ben calibrato ma, da solo, non batte le quote di chiusura dei bookmaker. Fonti gratuite: football-data.co.uk, ESPN, FotMob.</p>
+    </div>
+  </section>
+</main>
+<footer class="wrap foot">Aggiornamento automatico più volte al giorno · solo a scopo informativo</footer>
+<script src="app.js"></script>
+</body>
+</html>
