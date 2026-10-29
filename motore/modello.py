@@ -115,6 +115,7 @@ class Modello:
         flat = sorted(((M[a, b], f"{a}-{b}") for a in range(6) for b in range(6)), reverse=True)[:3]
         p["Risultati probabili"] = ", ".join(f"{s} ({q:.0%})" for q, s in flat)
         p["affidabilita"] = self.affidabilita(casa, ospite)
+        p["_M"] = M
         return p
 
     def affidabilita(self, casa, ospite):

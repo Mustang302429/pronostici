@@ -18,6 +18,7 @@
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab on" data-view="partite" role="tab">Partite</button>
+      <button class="tab" data-view="schedina" role="tab" id="tab-sch">Schedina</button>
       <button class="tab" data-view="verifica" role="tab">Verifica</button>
       <button class="tab" data-view="info" role="tab">Info</button>
     </nav>
@@ -47,6 +48,33 @@
     <div id="lista" class="lista"></div>
   </section>
 
+  <section id="v-schedina" class="view">
+    <div class="head"><h1>Schedina</h1><p class="meta">Il sistema sceglie una giocata per partita tra quelle sopra la soglia</p></div>
+    <div class="s-grid">
+      <div class="s-opt">
+        <div class="row">
+          <select id="s-giorno" aria-label="Giorno"></select>
+          <select id="s-comp" aria-label="Competizione"><option value="">Tutte le competizioni</option></select>
+        </div>
+        <label class="lab">Probabilità minima di ogni giocata: <b id="s-soglia-v">60%</b>
+          <input type="range" id="s-soglia" min="50" max="90" step="5" value="60"></label>
+        <div class="row">
+          <label class="lab">Stile<select id="s-modo"><option value="sicura">Più sicura (probabilità più alta)</option><option value="quota">Più quota (la meno scontata sopra soglia)</option></select></label>
+          <label class="lab">Quota equa minima per giocata<select id="s-qmin"><option value="1.01">nessun limite</option><option value="1.15">1,15</option><option value="1.2" selected>1,20</option><option value="1.3">1,30</option><option value="1.5">1,50</option></select></label>
+          <label class="lab">Massimo partite<select id="s-max"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select></label>
+        </div>
+        <div class="lab">Mercati ammessi</div>
+        <div class="fam" id="s-fam"></div>
+        <label class="chk"><input type="checkbox" id="s-alta" checked> Solo partite con affidabilità alta</label>
+      </div>
+      <div id="s-out"></div>
+    </div>
+    <div id="s-mia" class="s-mia"></div>
+    <div class="prose"><h2>Come leggerla</h2>
+      <p><b>Quota equa</b> = 1 diviso la probabilità del sistema. Se il bookmaker paga di più della quota equa, secondo il sistema la giocata ha valore; se paga meno, no. <b>Probabilità totale</b> = le probabilità delle singole giocate moltiplicate tra loro: con più partite scende in fretta. La quota minima serve a escludere giocate quasi scontate che non pagano nulla.</p>
+      <p>È uno strumento per vedere cosa viene fuori dai numeri, non un consiglio di gioco.</p></div>
+  </section>
+
   <section id="v-verifica" class="view">
     <div class="head"><h1>Verifica</h1><p class="meta">Quanto ci prende davvero il sistema</p></div>
     <h2>Pronostici emessi e verificati</h2>
@@ -65,6 +93,12 @@
       <p>Per ogni partita si leggono infortuni, squalifiche e formazioni probabili o ufficiali. Ogni giocatore pesa in base al valore di mercato e al voto stagionale. Se mancano titolari in attacco, i gol attesi della squadra scendono; se mancano in difesa, salgono quelli dell'avversario. Correzione massima ±25%. La formazione probabile pesa a metà, quella ufficiale per intero.</p>
       <h2>Come leggere una partita</h2>
       <p><b>Le barre 1-X-2</b> e i mercati sono già corretti dal ramo 2. <b>Effetto assenze</b> mostra quanto il presente ha spostato le probabilità. <b>Disaccordo col mercato</b> compare quando sistema e bookmaker differiscono di almeno 8 punti: è un segnale per controllare le notizie. <b>Affidabilità</b> è alta quando entrambe le squadre hanno storico nei campionati coperti.</p>
+      <h2>Disaccordo col mercato</h2>
+      <p>Il numero si riferisce al <b>segno</b> (1 = vince la squadra di casa, X = pareggio, 2 = vince l'ospite), non al ramo. Il segno meno è un "meno": "Sul segno 1: sistema 48% contro bookmaker 56% (−9 punti)" significa che il sistema dà alla vittoria di casa 9 punti percentuali in meno dei bookmaker.</p>
+      <h2>Assenti</h2>
+      <p>Per ogni assente: ruolo, motivo, e se era titolare nelle ultime 3 partite giocate dalla squadra. <b>Impatto alto</b> = titolare fisso e tra i più forti della rosa; <b>medio</b> = titolare meno decisivo, oppure giocatore forte già fuori da qualche partita (la squadra è già abituata e la forma recente ne tiene conto); <b>basso</b> = riserva.</p>
+      <h2>Primo tempo, secondo tempo, cartellini</h2>
+      <p>I gol attesi della partita vengono divisi tra i due tempi secondo la quota storica di gol nel primo tempo del campionato (circa 44%). I cartellini usano un modello per squadra: quanti gialli prende e quanti ne fa prendere agli avversari, più il livello del campionato. Nelle coppe si usa la media dei due campionati.</p>
       <h2>Limiti onesti</h2>
       <p>Sono probabilità, non certezze. Il modello è ben calibrato ma, da solo, non batte le quote di chiusura dei bookmaker. Fonti gratuite: football-data.co.uk, ESPN, FotMob.</p>
     </div>

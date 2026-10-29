@@ -103,6 +103,37 @@ def _forza(xi):
     difesa = q["POR"] * 1.5 + q["DIF"] + 0.4 * q["CEN"]
     return attacco, difesa
 
+RUOLO_IT = {"POR": "Portiere", "DIF": "Difensore", "CEN": "Centrocampista", "ATT": "Attaccante"}
+
+def ultimi_titolari(team_id, n=3):
+    """Titolari della squadra nelle ultime n partite giocate: {id_giocatore: presenze da titolare}, n partite lette."""
+    j = _get(f"{FOTMOB}/teams?id={int(team_id)}") or {}
+    fx = ((j.get("fixtures") or {}).get("allFixtures") or {}).get("fixtures") or []
+    fatte = [x for x in fx if (x.get("status") or {}).get("finished") and not (x.get("status") or {}).get("cancelled")]
+    fatte = sorted(fatte, key=lambda x: x["status"].get("utcTime", ""))[-n:]
+    conta, lette = {}, 0
+    for x in fatte:
+        m = _get(f"{FOTMOB}/matchDetails?matchId={x['id']}") or {}
+        lu = (m.get("content") or {}).get("lineup") or {}
+        lato = next((lu.get(k) for k in ("homeTeam", "awayTeam") if (lu.get(k) or {}).get("id") == int(team_id)), None)
+        if not lato or not lato.get("starters"): continue
+        lette += 1
+        for p in lato["starters"]:
+            conta[p["id"]] = conta.get(p["id"], 0) + 1
+    return conta, lette
+
+def _etichetta(tit, lette, peso):
+    if lette == 0: stato = "dato titolarità non disponibile"
+    elif tit == lette: stato = f"Titolare ({tit}/{lette} ultime partite)"
+    elif tit >= 1: stato = f"A volte titolare ({tit}/{lette})"
+    else: stato = f"Non titolare nelle ultime {lette} (già fuori o riserva: la squadra è già abituata)"
+    # impatto: conta soprattutto se giocava davvero (titolare) e quanto vale nella rosa
+    t = tit / lette if lette else 0.5
+    q = min(1, peso / 0.11)            # 0.11 ≈ un titolare di livello alto per la squadra
+    score = t * (0.45 + 0.55 * q) + (1 - t) * 0.45 * q
+    impatto = "Alto" if score >= 0.75 else "Medio" if score >= 0.35 else "Basso"
+    return stato, impatto, score
+
 def valuta_squadra(team_id, lineup_side):
     """Ritorna (fattore attacco, fattore difesa, assenti, tipo formazione, testo)."""
     R = rosa(team_id)
@@ -137,21 +168,27 @@ def valuta_squadra(team_id, lineup_side):
         fa = (1 - w) * fa + w * fa_x; fd = (1 - w) * fd + w * fd_x
         tipo_form = "ufficiale" if ufficiale else "probabile"
     fa, fd = float(np.clip(fa, 0.6, 1.0)), float(np.clip(fd, 0.6, 1.0))
-    # testo: assenti più pesanti
+    # testo: assenti ordinati per impatto (titolare nelle ultime partite + peso nel reparto)
     if assenti:
         Ri = R.set_index("id")
-        tot_gol = max(1, R.gol.sum())
-        righe = []
+        try:
+            conta, lette = ultimi_titolari(team_id)
+        except Exception:
+            conta, lette = {}, 0
+        tot = max(1, _xi(R).qualita.sum())
         for a in assenti:
-            if a["id"] in Ri.index:
-                x = Ri.loc[a["id"]]
-                imp = x.qualita / max(1, _xi(R).qualita.sum())
-                a["peso"] = imp
-                extra = f", {int(x.gol)} gol" if x.gol else ""
-                righe.append((imp, f"{a['nome']} ({x.reparto}, {a['motivo']}{extra})"))
-            else:
-                a["peso"] = 0; righe.append((0, f"{a['nome']} ({a['motivo']})"))
-        testo = "; ".join(t for _, t in sorted(righe, reverse=True)[:5])
+            x = Ri.loc[a["id"]] if a["id"] in Ri.index else None
+            a["peso"] = float(x.qualita / tot) if x is not None else 0.0
+            a["ruolo"] = RUOLO_IT.get(x.reparto, "") if x is not None else ""
+            a["gol"] = int(x.gol) if x is not None and x.gol else 0
+            a["assist"] = int(x.assist) if x is not None and x.assist else 0
+            a["voto"] = float(x.voto) if x is not None and x.voto else None
+            a["titolare"], a["impatto"], a["score"] = _etichetta(conta.get(a["id"], 0), lette, a["peso"])
+        assenti.sort(key=lambda a: -a["score"])
+        def riga(a):
+            extra = f", {a['gol']} gol" if a["gol"] else ""
+            return f"{a['nome']} ({a['ruolo'] or '?'}, {a['motivo']}, {a['titolare'].split(' (')[0].lower()}{extra}) – impatto {a['impatto'].lower()}"
+        testo = "; ".join(riga(a) for a in assenti[:6])
     else:
         testo = "nessun assente segnalato"
     return float(fa), float(fd), assenti, tipo_form, testo
@@ -175,7 +212,10 @@ def analizza(cal, workers=4):
         # gol attesi casa: qualità attacco casa vs qualità difesa ospite
         cc = np.clip(fa_h ** k * fd_a ** (-k), 1 - MAX_CORR, 1 + MAX_CORR)
         co = np.clip(fa_a ** k * fd_h ** (-k), 1 - MAX_CORR, 1 + MAX_CORR)
-        return {"fm_ok": True, "corr_casa": float(cc), "corr_ospite": float(co),
+        arb = (((j.get("content") or {}).get("matchFacts") or {}).get("infoBox") or {}).get("Referee") or {}
+        pulisci = lambda L: [{k: a.get(k) for k in ("nome", "ruolo", "motivo", "rientro", "titolare", "impatto", "gol", "assist", "voto")} for a in L]
+        return {"fm_ok": True, "corr_casa": float(cc), "corr_ospite": float(co), "arbitro": arb.get("text") if isinstance(arb, dict) else None,
+                "lista_assenti_casa": pulisci(ass_h), "lista_assenti_ospite": pulisci(ass_a),
                 "assenti_casa": tx_h, "assenti_ospite": tx_a, "formazione": tf_h if tf_h == tf_a else f"{tf_h}/{tf_a}",
                 "qual_casa": (fa_h + fd_h) / 2, "qual_ospite": (fa_a + fd_a) / 2,
                 "n_assenti_casa": len(ass_h), "n_assenti_ospite": len(ass_a)}

@@ -11,6 +11,7 @@ from .dati import carica
 from .modello import Modello
 from .calendario import prossime
 from .contesto import scheda
+from .extra import Tempi, Cartellini, combo
 from .backtest import metriche, calibrazione
 
 NOMI_COMP = {**CAMPIONATI, **COPPE}
@@ -28,6 +29,7 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
     print("[3/5] Ramo 1: calcolo la forza delle squadre...", flush=True)
     df, _ = carica()
     m = Modello(emivita=400, ridge=2).fit(df, oggi + pd.Timedelta(days=1))
+    T = Tempi().fit(df, oggi + pd.Timedelta(days=1)); C = Cartellini().fit(df, oggi + pd.Timedelta(days=1))
     cal = prossime(giorni, oggi)
     if ramo2:
         print(f"[4/5] Ramo 2: leggo infortuni, squalifiche e formazioni di {len(cal)} partite (FotMob)...", flush=True)
@@ -35,6 +37,8 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
     else:
         cal["corr_casa"] = cal["corr_ospite"] = 1.0
         cal["assenti_casa"] = cal["assenti_ospite"] = ""; cal["formazione"] = "ramo 2 disattivato"
+    for c in ("lista_assenti_casa", "lista_assenti_ospite", "arbitro"):
+        if c not in cal: cal[c] = None
     print("[5/5] Calcolo i pronostici e scrivo il report...", flush=True)
     righe, schede, arch = [], [], []
     for r in cal.itertuples():
@@ -62,10 +66,19 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
             riga["Bookmaker 1"], riga["Bookmaker X"], riga["Bookmaker 2"] = imp
             diff = np.array([p2["1"], p2["X"], p2["2"]]) - imp
             i = int(np.argmax(np.abs(diff)))
-            if abs(diff[i]) >= 0.08: riga["Disaccordo col mercato"] = f"{'1X2'[i]}: {diff[i]:+.0%}"
+            if abs(diff[i]) >= 0.08:
+                nome = ["vittoria casa (1)", "pareggio (X)", "vittoria ospite (2)"][i]
+                riga["Disaccordo col mercato"] = (f"Sul segno {'1X2'[i]} – {nome}: sistema {[p2['1'], p2['X'], p2['2']][i]:.0%}"
+                                                  f" contro bookmaker {imp[i]:.0%} ({diff[i]*100:+.0f} punti)")
         riga["Formazioni"] = r.formazione
         riga["Assenti casa"] = r.assenti_casa; riga["Assenti ospite"] = r.assenti_ospite
         riga["Affidabilità dati"] = p1["affidabilita"]
+        # mercati aggiuntivi: tempi (dai gol attesi già corretti dal ramo 2), cartellini, combo
+        q_t = T.q(r.comp, m.gruppo.get(r.casa), m.gruppo.get(r.ospite))
+        riga["extra"] = {**T.mercati(p2["xG_casa"], p2["xG_ospite"], q_t), **C.mercati(r.casa, r.ospite, r.comp), **combo(p2["_M"])}
+        riga["Assenti casa (lista)"] = r.lista_assenti_casa if isinstance(r.lista_assenti_casa, list) else []
+        riga["Assenti ospite (lista)"] = r.lista_assenti_ospite if isinstance(r.lista_assenti_ospite, list) else []
+        riga["Arbitro"] = r.arbitro if isinstance(r.arbitro, str) and r.arbitro else None
         righe.append(riga)
         schede.append({"Data": r.data, "Partita": f"{r.casa_espn} - {r.ospite_espn}",
                        "Competizione": NOMI_COMP.get(r.comp, r.comp),
@@ -73,6 +86,8 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
         arch.append({"data": r.data, "comp": r.comp, "casa": r.casa, "ospite": r.ospite,
                      **{f"R1_{k}": p1[v] for k, v in [("1", "1"), ("X", "X"), ("2", "2"), ("O25", "Over 2.5"), ("GG", "Gol")]},
                      **{f"R2_{k}": p2[v] for k, v in [("1", "1"), ("X", "X"), ("2", "2"), ("O25", "Over 2.5"), ("GG", "Gol")]},
+                     **{f"R2_{k}": riga["extra"][v] for k, v in [("1T_O05", "1T Over 0.5"), ("1T_O15", "1T Over 1.5"), ("1T_X", "1T X"),
+                                                                ("2T_O05", "2T Over 0.5"), ("2T_O15", "2T Over 1.5"), ("Y_O35", "Gialli Over 3.5"), ("Y_O45", "Gialli Over 4.5")]},
                      "corr_casa": r.corr_casa, "corr_ospite": r.corr_ospite, "q1": q[0], "qx": q[1], "q2": q[2]})
     archivio.salva(pd.DataFrame(arch))
     _, riep = archivio.verifica(df)
@@ -98,14 +113,20 @@ def _foglio(ws, d, perc=(), larg=None, freeze="C2"):
             elif isinstance(c.value, pd.Timestamp): c.number_format = "dd/mm hh:mm"
     ws.freeze_panes = freeze; ws.auto_filter.ref = ws.dimensions; ws.row_dimensions[1].height = 32
 
+XL_EXTRA = ["1T Over 0.5", "1T Over 1.5", "1T X", "2T Over 0.5", "2T Over 1.5", "Gialli attesi", "Gialli Over 3.5", "Gialli Over 4.5",
+            "1X + Under 3.5", "X2 + Under 3.5", "1X + Over 1.5", "Gol + Over 2.5"]
+
 def salva_excel(prev, sch, bt=None, riep=None, nome=None):
     OUT.mkdir(exist_ok=True, parents=True)
+    prev = prev.copy()
+    for k in XL_EXTRA: prev[k] = prev["extra"].map(lambda e: e.get(k))
+    prev = prev.drop(columns=["extra", "Assenti casa (lista)", "Assenti ospite (lista)"])
     nome = nome or OUT / f"pronostici_{pd.Timestamp.now():%Y-%m-%d}.xlsx"
     wb = Workbook()
     ws = wb.active; ws.title = "Prossime partite"
-    _foglio(ws, prev, PERC, {"Data": 13, "Competizione": 22, "Casa": 22, "Ospite": 22, "Segno favorito": 14,
+    _foglio(ws, prev, PERC + [k for k in XL_EXTRA if k != "Gialli attesi"], {"Data": 13, "Competizione": 22, "Casa": 22, "Ospite": 22, "Segno favorito": 14,
                              "Esito più probabile": 18, "Risultati esatti probabili": 30, "Effetto assenze": 18,
-                             "Solo statistica 1-X-2": 16, "Disaccordo col mercato": 14, "Formazioni": 16,
+                             "Solo statistica 1-X-2": 16, "Disaccordo col mercato": 40, "Formazioni": 16,
                              "Assenti casa": 60, "Assenti ospite": 60}, freeze="E2")
     for c in PERC[:11]:
         L = get_column_letter(list(prev.columns).index(c) + 1)
