@@ -2,10 +2,10 @@ name: Aggiorna pronostici
 
 on:
   schedule:
-    - cron: "0 5 * * *"
-    - cron: "0 11 * * *"
-    - cron: "30 16 * * *"
-  workflow_dispatch:
+    - cron: "0 5 * * *"    # 07:00 ora italiana (06:00 in inverno)
+    - cron: "0 11 * * *"   # 13:00
+    - cron: "30 16 * * *"  # 18:30: formazioni probabili delle partite serali
+  workflow_dispatch:        # pulsante "Run workflow" per aggiornare a mano
 
 permissions:
   contents: write
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   aggiorna:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
       name: github-pages
@@ -26,24 +26,24 @@ jobs:
     env:
       TZ: Europe/Rome
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Calcola i pronostici
+      - name: Calcola i pronostici (ramo 1 + ramo 2)
         run: python -m motore.genera --solo-sito
-      - name: Salva archivio e dati
+      - name: Salva archivio e dati nel repository
         run: |
           git config user.name "pronostici-bot"
           git config user.email "pronostici-bot@users.noreply.github.com"
           git add dati/archivio_pronostici.csv docs/data.json
           git commit -m "Aggiornamento $(date '+%Y-%m-%d %H:%M')" || echo "niente da salvare"
           git push
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
