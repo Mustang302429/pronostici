@@ -137,3 +137,22 @@ input[type=range]{accent-color:var(--acc);width:100%}
 @media (max-width:560px){.fam{grid-template-columns:1fr}.tab{padding:var(--s2) 2px;white-space:nowrap;font-size:var(--text-xs)}.t-r{gap:var(--s2);padding:var(--s3)}}
 .mk2{grid-template-columns:1fr 1fr}
 .kv .forma{flex-wrap:wrap;justify-content:flex-end}
+/* v4: sezioni richiudibili nel dettaglio partita */
+.card.open .det{display:block}
+.sez{border:1px solid var(--line);border-radius:var(--r);background:var(--surf);margin-bottom:var(--s2)}
+.sez>summary{cursor:pointer;list-style:none;padding:var(--s3) var(--s4);font-weight:700;font-size:var(--text-sm);display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.sez>summary::-webkit-details-marker{display:none}
+.sez>summary::after{content:'+';color:var(--acc);font-size:1.2em;font-weight:500}
+.sez[open]>summary::after{content:'–'}
+.sez-b{padding:0 var(--s4) var(--s4)}
+.sez-b .kv{margin-top:var(--s3)}
+.sez-b .note{margin-top:var(--s2)}
+.lab2{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:var(--s3) 0 var(--s2)}
+.lab2.big{color:var(--text);font-weight:700;margin-top:var(--s4)}
+.mk{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}
+.mk2{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.mc em{display:block;font-style:normal;font-size:.7rem;color:var(--faint);line-height:1.3}
+.mc em.bk{color:var(--mut)}.mc em.bk.val{color:var(--acc)}
+.mc.sel{background:var(--acc);color:var(--acc-ink)}.mc.sel small,.mc.sel em,.mc.sel b{color:var(--acc-ink)}
+@media (max-width:480px){.mk{grid-template-columns:repeat(3,1fr)}.mk2{grid-template-columns:1fr 1fr}.sez-b{padding:0 var(--s3) var(--s3)}}
+.bar>div{white-space:nowrap;overflow:hidden;text-overflow:clip}

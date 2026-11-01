@@ -1,0 +1,4 @@
+{"partite": 2667, "stagione": "2025/26", "peso_mercato": 0.9,
+ "logloss_1x2": {"modello": 0.9896, "mix": 0.9757, "bookmaker": 0.9752},
+ "logloss_ou25": {"modello": 0.6824, "mix": 0.6756, "bookmaker": 0.6756},
+ "logloss_esatto": {"modello": 2.9020, "mix": 2.8776}}

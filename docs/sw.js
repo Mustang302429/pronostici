@@ -1,6 +1,6 @@
 // Service worker: l'app si apre anche senza rete (mostra gli ultimi dati scaricati).
 // I dati vengono sempre presi prima dalla rete, così sono aggiornati.
-const CACHE = 'pronostici-v3';
+const CACHE = 'pronostici-v4';
 const BASE = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

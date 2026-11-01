@@ -102,14 +102,17 @@ class Modello:
         M[0, 0] *= 1 - lh * la * r; M[1, 0] *= 1 + la * r; M[0, 1] *= 1 + lh * r; M[1, 1] *= 1 - r
         return M / M.sum()
 
-    def mercati(self, casa, ospite, comp, neutro=False, corr_casa=1.0, corr_ospite=1.0):
-        lh, la = self.lambdas(casa, ospite, comp, neutro)
-        lh, la = lh * corr_casa, la * corr_ospite
+    def mercati(self, casa, ospite, comp, neutro=False, corr_casa=1.0, corr_ospite=1.0, forza=None):
+        if forza is not None:          # gol attesi già stabiliti (es. allineati alle quote del mercato)
+            lh, la = forza
+        else:
+            lh, la = self.lambdas(casa, ospite, comp, neutro)
+            lh, la = lh * corr_casa, la * corr_ospite
         M = self.matrice(lh, la); i, j = np.indices(M.shape); tot = i + j
         p = {"xG_casa": lh, "xG_ospite": la,
              "1": M[i > j].sum(), "X": M[i == j].sum(), "2": M[i < j].sum()}
         p["1X"], p["X2"], p["12"] = p["1"] + p["X"], p["X"] + p["2"], p["1"] + p["2"]
-        for s in (1.5, 2.5, 3.5):
+        for s in (0.5, 1.5, 2.5, 3.5, 4.5):
             p[f"Over {s}"] = M[tot > s].sum(); p[f"Under {s}"] = 1 - p[f"Over {s}"]
         p["Gol"] = M[(i > 0) & (j > 0)].sum(); p["NoGol"] = 1 - p["Gol"]
         flat = sorted(((M[a, b], f"{a}-{b}") for a in range(6) for b in range(6)), reverse=True)[:3]

@@ -193,6 +193,46 @@ def valuta_squadra(team_id, lineup_side):
         testo = "nessun assente segnalato"
     return float(fa), float(fd), assenti, tipo_form, testo
 
+# ---------------- marcatori ----------------
+PRIOR_90 = {"ATT": 0.32, "CEN": 0.10, "DIF": 0.04, "POR": 0.0}   # gol per 90' "tipici" del ruolo
+
+def _stat(lid, sid, nome):
+    j = _get(f"https://data.fotmob.com/stats/{lid}/season/{sid}/{nome}.json") or {}
+    try:
+        return {int(a["ParticiantId"] if "ParticiantId" in a else a["ParticipantId"]): a for a in j["TopLists"][0]["StatList"]}
+    except Exception:
+        return {}
+
+def marcatori(team_id, lineup_side, esclusi=()):
+    """Candidati marcatori della squadra con i gol attesi "grezzi" (da riscalare sui gol attesi della squadra).
+    Tasso gol per 90' = 70% xG + 30% gol reali della stagione (campionato), ristretto verso il valore tipico
+    del ruolo quando i minuti sono pochi. Minuti attesi: titolari ~80', altri in base allo spazio avuto."""
+    j = _get(f"{FOTMOB}/teams?id={int(team_id)}") or {}
+    st = j.get("stats") or {}
+    lid, sid = st.get("primaryLeagueId"), st.get("primarySeasonId")
+    if not lid or not sid: return []
+    xg, gl, mi = _stat(lid, sid, "expected_goals"), _stat(lid, sid, "goals"), _stat(lid, sid, "mins_played")
+    R = rosa(team_id)
+    if R.empty or not mi: return []
+    tid = int(team_id)
+    partite = max([a.get("MatchesPlayed") or 0 for a in mi.values() if a.get("TeamId") == tid] or [1])
+    titolari = {p["id"] for p in (lineup_side or {}).get("starters", []) or []}
+    out = []
+    for r in R.itertuples():
+        if r.id in esclusi or r.reparto == "POR": continue
+        m = mi.get(int(r.id)); minuti = float(m["StatValue"]) if m and m.get("TeamId") == tid else 0.0
+        x = float(xg[int(r.id)]["StatValue"]) if int(r.id) in xg else 0.0
+        g = float(gl[int(r.id)]["StatValue"]) if int(r.id) in gl else 0.0
+        m0 = 450.0                                   # 5 partite "virtuali" del valore tipico del ruolo
+        r90 = (0.7 * x + 0.3 * g + PRIOR_90[r.reparto] * m0 / 90) / ((minuti + m0) / 90)
+        quota_min = minuti / (90 * partite) if partite else 0
+        if titolari: att = 80.0 if r.id in titolari else 25.0 * quota_min
+        else: att = min(85.0, 95.0 * quota_min)
+        if att < 3: continue
+        out.append({"nome": r.nome, "ruolo": RUOLO_IT.get(r.reparto, ""), "gol": int(g), "xg": round(x, 1),
+                    "minuti": int(minuti), "titolare": r.id in titolari, "eg": r90 * att / 90})
+    return sorted(out, key=lambda a: -a["eg"])
+
 def analizza(cal, workers=4):
     """Per ogni partita: fattori di correzione dei gol attesi + elenco assenti."""
     cal = trova_partite(cal)
@@ -212,13 +252,19 @@ def analizza(cal, workers=4):
         # gol attesi casa: qualità attacco casa vs qualità difesa ospite
         cc = np.clip(fa_h ** k * fd_a ** (-k), 1 - MAX_CORR, 1 + MAX_CORR)
         co = np.clip(fa_a ** k * fd_h ** (-k), 1 - MAX_CORR, 1 + MAX_CORR)
+        try:
+            esc_h = {a["id"] for a in ass_h if "dubbio" not in a["motivo"]}; esc_a = {a["id"] for a in ass_a if "dubbio" not in a["motivo"]}
+            mc, mo = marcatori(r.fm_casa, h, esc_h), marcatori(r.fm_ospite, a, esc_a)
+        except Exception:
+            mc, mo = [], []
         arb = (((j.get("content") or {}).get("matchFacts") or {}).get("infoBox") or {}).get("Referee") or {}
         pulisci = lambda L: [{k: a.get(k) for k in ("nome", "ruolo", "motivo", "rientro", "titolare", "impatto", "gol", "assist", "voto")} for a in L]
         return {"fm_ok": True, "corr_casa": float(cc), "corr_ospite": float(co), "arbitro": arb.get("text") if isinstance(arb, dict) else None,
                 "lista_assenti_casa": pulisci(ass_h), "lista_assenti_ospite": pulisci(ass_a),
                 "assenti_casa": tx_h, "assenti_ospite": tx_a, "formazione": tf_h if tf_h == tf_a else f"{tf_h}/{tf_a}",
                 "qual_casa": (fa_h + fd_h) / 2, "qual_ospite": (fa_a + fd_a) / 2,
-                "n_assenti_casa": len(ass_h), "n_assenti_ospite": len(ass_a)}
+                "n_assenti_casa": len(ass_h), "n_assenti_ospite": len(ass_a),
+                "marc_casa": mc, "marc_ospite": mo}
     def sicura(r):
         try:
             return una(r)

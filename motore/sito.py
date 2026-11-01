@@ -25,7 +25,7 @@ def scrivi(prev, sch, riep, bt_metriche=None):
     out = {"aggiornato": pd.Timestamp.now(tz="Europe/Rome").strftime("%Y-%m-%dT%H:%M"),
            "partite": partite,
            "verifica": [] if riep is None else [{k: _pulisci(v) for k, v in r.items()} for _, r in riep.iterrows()],
-           "backtest": bt_metriche or {}, "backtest_extra": _extra()}
+           "backtest": bt_metriche or {}, "backtest_extra": _extra(), "backtest_mercato": _extra("backtest_mercato.json")}
     (DOCS / "data.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     return DOCS / "data.json"
 
@@ -43,6 +43,6 @@ def riepilogo_backtest():
          "calibrazione": [{"fascia": str(x.fascia), "previsto": float(x.previsto), "reale": float(x.reale), "n": int(x.n)} for x in cal.itertuples()]}
     f.write_text(json.dumps(r), encoding="utf-8"); return r
 
-def _extra():
-    f = BASE / "dati" / "backtest_extra.json"
+def _extra(nome="backtest_extra.json"):
+    f = BASE / "dati" / nome
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}

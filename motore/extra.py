@@ -49,25 +49,32 @@ class Tempi:
         out["Tempo più gol: 1°"] = J[i > j].sum(); out["Tempo più gol: 2°"] = J[i < j].sum(); out["Tempo più gol: pari"] = J[i == j].sum()
         return out
 
-# ---------------------------------------------------------------- cartellini
-class Cartellini:
+# ---------------------------------------------------------------- conteggi (cartellini, corner, tiri)
+class Conteggio:
+    """Modello generico per statistiche "contabili" della partita (gialli, corner, tiri, tiri in porta).
+    Per ogni squadra: quanto ne produce (own) e quanto ne concede/fa produrre all'avversario (prov),
+    più un livello base per campionato e un effetto casa. Dispersione: binomiale negativa."""
+    col = "gialli"; nome = "Gialli"
+    linee_tot = (2.5, 3.5, 4.5, 5.5, 6.5); linee_sq = (0.5, 1.5, 2.5, 3.5)
+    etichetta_1x2 = "1X2 ammonizioni"
+
     def __init__(self, emivita=400, ridge=3.0):
         self.emivita, self.ridge = emivita, ridge
 
     def fit(self, df, al, giorni=1100):
-        al = pd.Timestamp(al)
-        d = df[(df.data < al) & (df.data >= al - pd.Timedelta(days=giorni)) & df.gialli_c.notna() & (df.tipo == "lega")].copy()
+        al = pd.Timestamp(al); cc, co = self.col + "_c", self.col + "_o"
+        d = df[(df.data < al) & (df.data >= al - pd.Timedelta(days=giorni)) & df[cc].notna() & df[co].notna() & (df.tipo == "lega")].copy()
         w = 0.5 ** ((al - d.data).dt.days.values / self.emivita)
         sq = sorted(set(d.casa) | set(d.ospite)); ti = {t: i for i, t in enumerate(sq)}
         comps = sorted(set(d.comp)); ci = {c: i for i, c in enumerate(comps)}
         h, a, c = d.casa.map(ti).values, d.ospite.map(ti).values, d.comp.map(ci).values
-        yh, ya = d.gialli_c.values.astype(float), d.gialli_o.values.astype(float)
+        yh, ya = d[cc].values.astype(float), d[co].values.astype(float)
         nT, nC = len(sq), len(comps); lam = self.ridge
         sl = np.cumsum([0, nC, 1, nT, nT])
         def f(p):
             base, hf, own, prov = p[sl[0]:sl[1]], p[sl[1]], p[sl[2]:sl[3]], p[sl[3]:sl[4]]
-            eh = base[c] + own[h] + prov[a]          # gialli alla squadra di casa
-            ea = base[c] + hf + own[a] + prov[h]     # gialli alla squadra ospite (+ effetto trasferta)
+            eh = base[c] + own[h] + prov[a]          # valore della squadra di casa
+            ea = base[c] + hf + own[a] + prov[h]     # valore della squadra ospite (+ effetto trasferta)
             mh, ma = np.exp(eh), np.exp(ea)
             ll = np.sum(w * (yh * eh - mh + ya * ea - ma)) - lam * (own @ own + prov @ prov)
             rh, ra = w * (yh - mh), w * (ya - ma); g = np.zeros_like(p)
@@ -75,47 +82,91 @@ class Cartellini:
             g[sl[2]:sl[3]] = np.bincount(h, rh, nT) + np.bincount(a, ra, nT) - 2 * lam * own
             g[sl[3]:sl[4]] = np.bincount(a, rh, nT) + np.bincount(h, ra, nT) - 2 * lam * prov
             return -ll, -g
-        p0 = np.zeros(sl[-1]); p0[:nC] = np.log(2.0)
-        r = minimize(f, p0, jac=True, method="L-BFGS-B")
-        p = r.x
+        p0 = np.zeros(sl[-1]); p0[:nC] = np.log(max(1.0, np.mean(yh)))
+        p = minimize(f, p0, jac=True, method="L-BFGS-B").x
         self.base = dict(zip(comps, p[:nC])); self.hf = p[sl[1]]
         self.own = dict(zip(sq, p[sl[2]:sl[3]])); self.prov = dict(zip(sq, p[sl[3]:sl[4]]))
-        # dispersione del totale (binomiale negativa) e frequenza dei rossi per campionato
         mh = np.exp(p[:nC][c] + p[sl[2]:sl[3]][h] + p[sl[3]:sl[4]][a])
         ma = np.exp(p[:nC][c] + self.hf + p[sl[2]:sl[3]][a] + p[sl[3]:sl[4]][h])
         mu, y = mh + ma, yh + ya
-        self.alpha = float(max(0.01, (np.average((y - mu) ** 2, weights=w) - np.average(mu, weights=w)) / np.average(mu ** 2, weights=w)))
-        d["mu"] = mu; d["rossi"] = (d.rossi_c.fillna(0) + d.rossi_o.fillna(0)) > 0
-        g = d.groupby("comp").agg(r=("rossi", "mean"), m=("mu", "mean"))
-        self.rossi = g.r.to_dict(); self.media_mu = g.m.to_dict()
+        disp = lambda yy, m, ww: float(max(0.005, (np.average((yy - m) ** 2, weights=ww) - np.average(m, weights=ww)) / np.average(m ** 2, weights=ww)))
+        self.alpha = disp(y, mu, w)
+        self.alpha_sq = disp(np.r_[yh, ya], np.r_[mh, ma], np.r_[w, w])
+        self._dopo_fit(d, mu)
         self.lega_squadra = pd.concat([d[["casa", "comp"]].rename(columns={"casa": "t"}),
                                        d[["ospite", "comp"]].rename(columns={"ospite": "t"})]).groupby("t").comp.last().to_dict()
         return self
 
-    def mercati(self, casa, ospite, comp):
-        if comp not in self.base:   # coppe: media dei campionati delle due squadre
-            cs = [self.lega_squadra.get(t) for t in (casa, ospite)]
-            cs = [x for x in cs if x in self.base] or list(self.base)
-            b = float(np.mean([self.base[x] for x in cs])); rr = float(np.mean([self.rossi[x] for x in cs]))
-            mm = float(np.mean([self.media_mu[x] for x in cs]))
-        else:
-            b, rr, mm = self.base[comp], self.rossi[comp], self.media_mu[comp]
+    def _dopo_fit(self, d, mu): pass
+
+    def _leghe(self, casa, ospite, comp):
+        if comp in self.base: return [comp]
+        cs = [self.lega_squadra.get(t) for t in (casa, ospite)]   # coppe: campionati delle due squadre
+        return [x for x in cs if x in self.base] or list(self.base)
+
+    def attesi(self, casa, ospite, comp):
+        b = float(np.mean([self.base[x] for x in self._leghe(casa, ospite, comp)]))
         mh = np.exp(b + self.own.get(casa, 0) + self.prov.get(ospite, 0))
         ma = np.exp(b + self.hf + self.own.get(ospite, 0) + self.prov.get(casa, 0))
-        mu = mh + ma
-        n = 1 / self.alpha; pr = n / (n + mu)
-        cdf = lambda k: nbinom.cdf(k, n, pr)
-        out = {"Gialli attesi": mu, "Gialli casa attesi": mh, "Gialli ospite attesi": ma}
-        for s in (3.5, 4.5, 5.5):
-            out[f"Gialli Over {s}"] = 1 - cdf(int(s)); out[f"Gialli Under {s}"] = cdf(int(s))
+        return float(mh), float(ma)
+
+    @staticmethod
+    def _nb(mu, alpha, k):
+        n = 1 / alpha; return nbinom.pmf(np.arange(k), n, n / (n + mu))
+
+    def mercati(self, casa, ospite, comp):
+        mh, ma = self.attesi(casa, ospite, comp); mu = mh + ma; N = self.nome
+        n = 1 / self.alpha; pr = n / (n + mu); cdf = lambda k: nbinom.cdf(k, n, pr)
+        out = {f"{N} attesi": mu, f"{N} casa attesi": mh, f"{N} ospite attesi": ma}
+        for s in self.linee_tot:
+            out[f"{N} Over {s}"] = 1 - cdf(int(s)); out[f"{N} Under {s}"] = cdf(int(s))
         for nome, m in (("casa", mh), ("ospite", ma)):
-            n2 = 1 / self.alpha; p2 = n2 / (n2 + m)
-            out[f"Gialli {nome} Over 1.5"] = 1 - nbinom.cdf(1, n2, p2)
-            out[f"Gialli {nome} Over 2.5"] = 1 - nbinom.cdf(2, n2, p2)
+            n2 = 1 / self.alpha_sq; p2 = n2 / (n2 + m)
+            for s in self.linee_sq:
+                out[f"{N} {nome} Over {s}"] = 1 - nbinom.cdf(int(s), n2, p2)
+                out[f"{N} {nome} Under {s}"] = nbinom.cdf(int(s), n2, p2)
+        K = int(max(mh, ma) * 4 + 15)
+        J = np.outer(self._nb(mh, self.alpha_sq, K), self._nb(ma, self.alpha_sq, K)); J /= J.sum()
+        i, j = np.indices(J.shape)
+        e = self.etichetta_1x2
+        out[f"{e} 1"], out[f"{e} X"], out[f"{e} 2"] = J[i > j].sum(), J[i == j].sum(), J[i < j].sum()
+        out[f"{e} 1X"] = out[f"{e} 1"] + out[f"{e} X"]; out[f"{e} X2"] = out[f"{e} X"] + out[f"{e} 2"]
+        out[f"{e} 12"] = out[f"{e} 1"] + out[f"{e} 2"]
+        return out
+
+
+class Cartellini(Conteggio):
+    def _dopo_fit(self, d, mu):
+        d["mu"] = mu; d["rossi"] = (d.rossi_c.fillna(0) + d.rossi_o.fillna(0)) > 0
+        g = d.groupby("comp").agg(r=("rossi", "mean"), m=("mu", "mean"))
+        self.rossi = g.r.to_dict(); self.media_mu = g.m.to_dict()
+
+    def mercati(self, casa, ospite, comp):
+        out = super().mercati(casa, ospite, comp)
+        cs = self._leghe(casa, ospite, comp)
+        rr = float(np.mean([self.rossi[x] for x in cs])); mm = float(np.mean([self.media_mu[x] for x in cs]))
         # rossi: frequenza del campionato, scalata su quanto è "calda" la partita
-        tasso = -np.log(1 - min(rr, 0.6)) * (mu / mm)
+        tasso = -np.log(1 - min(rr, 0.6)) * (out["Gialli attesi"] / mm)
         out["Almeno un rosso"] = 1 - np.exp(-tasso)
         return out
+
+
+class Corner(Conteggio):
+    col = "corner"; nome = "Corner"; etichetta_1x2 = "1X2 corner"
+    linee_tot = (7.5, 8.5, 9.5, 10.5, 11.5); linee_sq = (2.5, 3.5, 4.5, 5.5, 6.5)
+    def __init__(self, emivita=400, ridge=25.0): super().__init__(emivita, ridge)   # ridge alto: scelto col backtest
+
+
+class Tiri(Conteggio):
+    col = "tiri"; nome = "Tiri"; etichetta_1x2 = "1X2 tiri totali"
+    linee_tot = (20.5, 22.5, 24.5, 26.5, 28.5); linee_sq = (8.5, 10.5, 12.5, 14.5)
+    def __init__(self, emivita=200, ridge=3.0): super().__init__(emivita, ridge)
+
+
+class TiriPorta(Conteggio):
+    col = "tip"; nome = "Tiri in porta"; etichetta_1x2 = "1X2 tiri in porta"
+    linee_tot = (6.5, 7.5, 8.5, 9.5, 10.5); linee_sq = (2.5, 3.5, 4.5, 5.5)
+    def __init__(self, emivita=200, ridge=3.0): super().__init__(emivita, ridge)
 
 # ---------------------------------------------------------------- combo
 ESITI = ["1", "X", "2", "1X", "X2", "12"]
@@ -127,6 +178,10 @@ def combo(M):
     G = {"Over 1.5": t > 1.5, "Over 2.5": t > 2.5, "Under 2.5": t < 2.5, "Under 3.5": t < 3.5,
          "Gol": (i > 0) & (j > 0), "NoGol": (i == 0) | (j == 0)}
     out = {f"{e} + {g}": float(M[E[e] & G[g]].sum()) for e in ESITI for g in GOL}
-    out["Gol + Over 2.5"] = float(M[G["Gol"] & G["Over 2.5"]].sum())
-    out["NoGol + Under 2.5"] = float(M[G["NoGol"] & G["Under 2.5"]].sum())
+    X = {"Gol + Over 2.5": G["Gol"] & G["Over 2.5"], "Gol + Over 3.5": G["Gol"] & (t > 3.5), "Gol + Under 3.5": G["Gol"] & G["Under 3.5"],
+         "Gol + Under 4.5": G["Gol"] & (t < 4.5), "NoGol + Over 1.5": G["NoGol"] & G["Over 1.5"], "NoGol + Over 2.5": G["NoGol"] & G["Over 2.5"],
+         "NoGol + Under 2.5": G["NoGol"] & G["Under 2.5"], "NoGol + Under 3.5": G["NoGol"] & G["Under 3.5"]}
+    out.update({k: float(M[v].sum()) for k, v in X.items()})
+    for e in ("1", "2", "1X", "X2"):
+        out[f"{e} + Gol + Over 2.5"] = float(M[E[e] & G["Gol"] & G["Over 2.5"]].sum())
     return out
