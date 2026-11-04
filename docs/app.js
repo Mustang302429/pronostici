@@ -17,6 +17,8 @@ const FAM = { esito: 'Esito e doppia chance', gol: 'Gol: Over/Under, Gol/NoGol',
   t1: '1° tempo', t2: '2° tempo', cart: 'Cartellini', corner: 'Corner', tiri: 'Tiri e tiri in porta', marc: 'Marcatori' };
 const LINEE = { Gialli: ['2.5', '3.5', '4.5', '5.5', '6.5'], Corner: ['7.5', '8.5', '9.5', '10.5', '11.5'], Tiri: ['20.5', '22.5', '24.5', '26.5', '28.5'], 'Tiri in porta': ['6.5', '7.5', '8.5', '9.5', '10.5'] };
 const LINEE_SQ = { Gialli: ['0.5', '1.5', '2.5'], Corner: ['2.5', '3.5', '4.5', '5.5', '6.5'], Tiri: ['8.5', '10.5', '12.5', '14.5'], 'Tiri in porta': ['2.5', '3.5', '4.5', '5.5'] };
+const SENZA_DC = ['Gialli', 'Corner'];
+const esitiStat = N => SENZA_DC.includes(N) ? ['1', 'X', '2'] : ['1', 'X', '2', '1X', 'X2', '12'];
 const ETI = { Gialli: '1X2 ammonizioni', Corner: '1X2 corner', Tiri: '1X2 tiri totali', 'Tiri in porta': '1X2 tiri in porta' };
 const FAMSTAT = { Gialli: 'cart', Corner: 'corner', Tiri: 'tiri', 'Tiri in porta': 'tiri' };
 const NOMESTAT = { Gialli: 'Cartellini gialli', Corner: 'Corner', Tiri: 'Tiri totali', 'Tiri in porta': 'Tiri in porta' };
@@ -34,7 +36,7 @@ function mercatiDi(p) {
   Object.keys(LINEE).forEach(N => {
     const f = FAMSTAT[N], nm = NOMESTAT[N];
     LINEE[N].forEach(s => { add(f, `${N} Over ${s}`, e[`${N} Over ${s}`], `${nm} Over ${s}`); add(f, `${N} Under ${s}`, e[`${N} Under ${s}`], `${nm} Under ${s}`); });
-    ['1', 'X', '2', '1X', 'X2', '12'].forEach(k => add(f, `${ETI[N]} ${k}`, e[`${ETI[N]} ${k}`]));
+    esitiStat(N).forEach(k => add(f, `${ETI[N]} ${k}`, e[`${ETI[N]} ${k}`]));
     ['casa', 'ospite'].forEach(sq => LINEE_SQ[N].forEach(s => {
       const t = sq === 'casa' ? p.Casa : p.Ospite;
       add(f, `${N} ${sq} Over ${s}`, e[`${N} ${sq} Over ${s}`], `${nm} ${t} Over ${s}`); add(f, `${N} ${sq} Under ${s}`, e[`${N} ${sq} Under ${s}`], `${nm} ${t} Under ${s}`);
@@ -174,7 +176,7 @@ function dettagli(p) {
   const stat = (N, extraKV = '') => {
     if (e[`${N} attesi`] == null) return '<p class="note">Dato non disponibile per questa partita.</p>';
     const tot = griglia(p, LINEE[N].flatMap(s => [[`${N} Over ${s}`, `Over ${s}`, e[`${N} Over ${s}`]], [`${N} Under ${s}`, `Under ${s}`, e[`${N} Under ${s}`]]]));
-    const x12 = griglia(p, ['1', 'X', '2', '1X', 'X2', '12'].map(k => [`${ETI[N]} ${k}`, k, e[`${ETI[N]} ${k}`]]));
+    const x12 = griglia(p, esitiStat(N).map(k => [`${ETI[N]} ${k}`, k, e[`${ETI[N]} ${k}`]]));
     const sq = s => griglia(p, LINEE_SQ[N].flatMap(l => [[`${N} ${s} Over ${l}`, `Over ${l}`, e[`${N} ${s} Over ${l}`]], [`${N} ${s} Under ${l}`, `Under ${l}`, e[`${N} ${s} Under ${l}`]]]));
     return `<div class="kv"><span>${NOMESTAT[N]} attesi</span><span>${f1(e[`${N} attesi`])} (${C} ${f1(e[`${N} casa attesi`])} · ${O} ${f1(e[`${N} ospite attesi`])})</span>${extraKV}</div>
       <div class="lab2">Totale partita</div>${tot}<div class="lab2">${ETI[N]} (chi ne fa di più)</div>${x12}
