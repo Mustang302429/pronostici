@@ -2,7 +2,7 @@ name: Aggiorna pronostici
 
 on:
   schedule:
-    - cron: "0 5 * * *"    # 07:00 ora italiana (06:00 in inverno)
+    - cron: "0 5 * * *"    # 07:00 ora italiana (06:00 in estate)
     - cron: "0 11 * * *"   # 13:00
     - cron: "30 16 * * *"  # 18:30: formazioni probabili delle partite serali
   workflow_dispatch:        # pulsante "Run workflow" per aggiornare a mano
@@ -34,11 +34,14 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Calcola i pronostici (ramo 1 + ramo 2)
         run: python -m motore.genera --solo-sito
+      - name: Schedine speciali (Sudamerica 1X2 e campionati da gol)
+        continue-on-error: true
+        run: python -m motore.mondo
       - name: Salva archivio e dati nel repository
         run: |
           git config user.name "pronostici-bot"
           git config user.email "pronostici-bot@users.noreply.github.com"
-          git add dati/archivio_pronostici.csv docs/data.json
+          git add dati/archivio_pronostici.csv docs/data.json docs/mondo.json
           git commit -m "Aggiornamento $(date '+%Y-%m-%d %H:%M')" || echo "niente da salvare"
           git push
       - uses: actions/configure-pages@v6

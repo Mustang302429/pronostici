@@ -26,6 +26,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab on" data-view="partite" role="tab">Partite</button>
       <button class="tab" data-view="schedina" role="tab" id="tab-sch">Schedina</button>
+      <button class="tab" data-view="speciali" role="tab">Speciali</button>
       <button class="tab" data-view="verifica" role="tab">Verifica</button>
       <button class="tab" data-view="info" role="tab">Info</button>
     </nav>
@@ -82,6 +83,45 @@
       <p>È uno strumento per vedere cosa viene fuori dai numeri, non un consiglio di gioco.</p></div>
   </section>
 
+  <section id="v-speciali" class="view">
+    <div class="head"><h1>Schedine speciali</h1><p class="meta" id="sp-agg">Caricamento…</p></div>
+    <div class="seg" role="tablist" aria-label="Sezione">
+      <button class="seg-b on" data-m="1x2">Solo 1X2 · serali</button>
+      <button class="seg-b" data-m="gol">Campionati da gol</button>
+    </div>
+    <p class="note" id="sp-intro"></p>
+    <div class="filters">
+      <div class="days" id="sp-days" aria-label="Giorni"></div>
+      <div class="row">
+        <select id="sp-lega" aria-label="Campionato"><option value="">Tutti i campionati</option></select>
+        <select id="sp-merc" aria-label="Scommessa" hidden>
+          <option value="Over 2.5">Over 2.5</option><option value="Over 1.5">Over 1.5</option>
+          <option value="1T Over 0.5">1° tempo Over 0.5</option><option value="Gol">Gol (segnano entrambe)</option>
+          <option value="Over 3.5">Over 3.5</option><option value="1T Over 1.5">1° tempo Over 1.5</option>
+        </select>
+        <label class="chk" id="sp-sera-l"><input type="checkbox" id="sp-sera"> Solo dalle 20 in poi (ora italiana)</label>
+        <label class="chk"><input type="checkbox" id="sp-alta" checked> Solo squadre con storico</label>
+      </div>
+    </div>
+    <div id="sp-leghe"></div>
+    <div class="s-grid">
+      <div class="s-opt">
+        <h2 class="h2s">Schedina proposta</h2>
+        <label class="lab">Probabilità minima di ogni giocata: <b id="sp-soglia-v">55%</b>
+          <input type="range" id="sp-soglia" min="30" max="90" step="5" value="55"></label>
+        <div class="row">
+          <label class="lab">Massimo partite<select id="sp-max"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>10</option></select></label>
+          <label class="lab">Ordine<select id="sp-modo"><option value="sicura">Più probabili prima</option><option value="valore">Prima quelle con quota book più alta della equa</option></select></label>
+        </div>
+        <div id="sp-out"></div>
+      </div>
+      <div id="sp-mia"></div>
+    </div>
+    <h2>Partite</h2>
+    <p class="note">Tocca una percentuale per metterla nella tua schedina speciale (una giocata per partita).</p>
+    <div id="sp-lista" class="lista"></div>
+  </section>
+
   <section id="v-verifica" class="view">
     <div class="head"><h1>Verifica</h1><p class="meta">Quanto ci prende davvero il sistema</p></div>
     <h2>Pronostici emessi e verificati</h2>
@@ -112,6 +152,9 @@
       <p>Multi Esiti 1-5, Cluster risultati esatti e Multigol sono i gruppi standard ADM, uguali su Sisal, Lottomatica e Snai. Ogni probabilità è la somma dei risultati esatti del gruppo. In evidenza trovi i gruppi più probabili da 2, 3 e 4 risultati e il "cluster su misura" con i risultati più probabili messi insieme.</p>
       <h2>Corner, tiri, tiri in porta, marcatori</h2>
       <p>Corner e tiri usano lo stesso modello dei cartellini: quanti ne produce ogni squadra e quanti ne concede, più il livello del campionato (dati football-data dal 2022). I marcatori usano gol e xG stagionali del giocatore (FotMob), i minuti attesi e i gol attesi della squadra; gli indisponibili sono esclusi.</p>
+      <h2>Schedine speciali</h2>
+      <p><b>Solo 1X2 · serali</b>: Argentina, Brasile (Serie A e B), Colombia, Cile, Uruguay, Perù, Ecuador, Paraguay, Bolivia, Messico e MLS. Stesso modello dei campionati principali (forza d'attacco e di difesa, partite recenti più pesanti) su circa due anni e mezzo di risultati ESPN, mescolato con le quote DraftKings quando ci sono. Backtest sugli ultimi 6 mesi: il modello prevede l'1X2 meglio della semplice media del campionato e, quando dà un favorito al 60% o più, quel favorito ha vinto il 67% delle volte.</p>
+      <p><b>Campionati da gol</b>: Bundesliga, Eredivisie, Eerste Divisie, Norvegia, MLS, Bolivia, Danimarca, Cina, Australia, Arabia Saudita, Austria e 2. Bundesliga: quelli con più Over nell'ultimo anno. Il 1° tempo si ricava dal minuto dei gol. Sugli Over il modello "squadra per squadra" da solo esagerava un po', quindi viene mescolato 50/50 con la media del campionato. Con questa correzione è tarato: quando dice Over 2.5 al 73%, nel passato è uscito il 72%.</p>
       <h2>Limiti onesti</h2>
       <p>Sono probabilità, non certezze. Il modello è ben calibrato ma, da solo, non batte le quote di chiusura dei bookmaker. Fonti gratuite: football-data.co.uk, ESPN, FotMob.</p>
     </div>
@@ -119,6 +162,7 @@
 </main>
 <footer class="wrap foot">Aggiornamento automatico più volte al giorno · solo a scopo informativo</footer>
 <script src="app.js"></script>
+<script src="speciali.js"></script>
 <script>try { if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); } catch (e) {}</script>
 </body>
 </html>
