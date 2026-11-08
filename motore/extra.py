@@ -156,6 +156,35 @@ class Corner(Conteggio):
     linee_tot = (7.5, 8.5, 9.5, 10.5, 11.5); linee_sq = (2.5, 3.5, 4.5, 5.5, 6.5)
     def __init__(self, emivita=400, ridge=25.0): super().__init__(emivita, ridge)   # ridge alto: scelto col backtest
 
+    # quota dei corner battuti nel 1° tempo (FotMob, 3.447 partite 2025/26 e 2026/27)
+    QUOTA_1T = {"B1": 0.462, "D1": 0.453, "E0": 0.484, "F1": 0.467, "I1": 0.46, "N1": 0.474, "P1": 0.48, "SP1": 0.473}
+    HANDICAP = ((1, 0), (0, 1), (2, 0), (0, 2))
+
+    def _diff(self, mh, ma, K=40):
+        """Distribuzione di (corner casa - corner ospite), indice spostato di K."""
+        ph, pa = self._nb(mh, self.alpha_sq, K), self._nb(ma, self.alpha_sq, K)
+        return np.convolve(ph, pa[::-1])          # posizione k -> differenza k-(K-1)
+
+    def mercati_tempi(self, casa, ospite, comp):
+        """1X2 corner 1° tempo, 1X2 handicap corner 1° tempo, parziale/finale corner."""
+        mh, ma = self.attesi(casa, ospite, comp)
+        cs = self._leghe(casa, ospite, comp)
+        s = float(np.mean([self.QUOTA_1T.get(x, 0.47) for x in cs])); K = 40
+        d1 = self._diff(mh * s, ma * s, K); d2 = self._diff(mh * (1 - s), ma * (1 - s), K)
+        v = np.arange(len(d1)) - (K - 1)
+        out = {"1T 1X2 corner 1": d1[v > 0].sum(), "1T 1X2 corner X": d1[v == 0].sum(), "1T 1X2 corner 2": d1[v < 0].sum(),
+               "Corner 1T attesi": (mh + ma) * s}
+        for hc, ho in self.HANDICAP:
+            k = hc - ho; t = f"1T handicap corner ({hc}:{ho})"
+            out[f"{t} 1"], out[f"{t} X"], out[f"{t} 2"] = d1[v + k > 0].sum(), d1[v + k == 0].sum(), d1[v + k < 0].sum()
+        J = np.outer(d1, d2); a, b = np.meshgrid(v, v, indexing="ij"); ft = a + b
+        seg = lambda x: np.where(x > 0, "1", np.where(x == 0, "X", "2"))
+        S1, S2 = seg(a), seg(ft)
+        for x in "1X2":
+            for y in "1X2":
+                out[f"Corner parziale/finale {x}/{y}"] = float(J[(S1 == x) & (S2 == y)].sum())
+        return {k: float(val) for k, val in out.items()}
+
 
 class Tiri(Conteggio):
     col = "tiri"; nome = "Tiri"; etichetta_1x2 = "1X2 tiri totali"

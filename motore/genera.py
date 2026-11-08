@@ -119,7 +119,7 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
         # mercati aggiuntivi: tempi (dai gol attesi già corretti dal ramo 2), cartellini, combo
         q_t = T.q(r.comp, m.gruppo.get(r.casa), m.gruppo.get(r.ospite))
         riga["extra"] = {**T.mercati(p2["xG_casa"], p2["xG_ospite"], q_t), **C.mercati(r.casa, r.ospite, r.comp),
-                         **K.mercati(r.casa, r.ospite, r.comp), **S.mercati(r.casa, r.ospite, r.comp), **P.mercati(r.casa, r.ospite, r.comp),
+                         **K.mercati(r.casa, r.ospite, r.comp), **K.mercati_tempi(r.casa, r.ospite, r.comp), **S.mercati(r.casa, r.ospite, r.comp), **P.mercati(r.casa, r.ospite, r.comp),
                          **combo(p2["_M"]), **{k: p2[k] for k in ("Over 0.5", "Under 0.5", "Over 1.5", "Under 1.5", "Over 4.5", "Under 4.5", "Under 3.5", "12")}}
         riga["Gruppi"] = gruppi(p2["_M"])
         riga["Marcatori"] = {"casa": _marc(r.marc_casa, p2["xG_casa"]), "ospite": _marc(r.marc_ospite, p2["xG_ospite"])}

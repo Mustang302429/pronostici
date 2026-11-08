@@ -74,7 +74,7 @@
         <div class="lab">Mercati ammessi</div>
         <div class="fam" id="s-fam"></div>
         <label class="chk"><input type="checkbox" id="s-alta" checked> Solo partite con affidabilità alta</label>
-        <label class="chk"><input type="checkbox" id="s-incerti"> Includi 1X2 corner, ammonizioni e tiri anche in Belgio, Olanda e Portogallo (su Sisal non sempre ci sono)</label>
+        <label class="chk"><input type="checkbox" id="s-incerti"> Includi 1X2 tiri anche in Belgio, Olanda e Portogallo (su Sisal non sempre ci sono)</label>
       </div>
       <div id="s-out"></div>
     </div>
@@ -146,6 +146,7 @@
       <h2>Assenti</h2>
       <p>Per ogni assente: ruolo, motivo, e se era titolare nelle ultime 3 partite giocate dalla squadra. <b>Impatto alto</b> = titolare fisso e tra i più forti della rosa; <b>medio</b> = titolare meno decisivo, oppure giocatore forte già fuori da qualche partita (la squadra è già abituata e la forma recente ne tiene conto); <b>basso</b> = riserva.</p>
       <h2>Primo tempo, secondo tempo, cartellini</h2>
+      <p>Corner del 1° tempo: la quota di corner battuti prima dell'intervallo (circa 46-48% a seconda del campionato) è stimata su 3.447 partite reali FotMob. Da qui si calcolano 1X2 corner 1° tempo, handicap e parziale/finale. In Belgio, Olanda e Portogallo restano solo questi mercati corner e i cartellini non compaiono, perché Sisal lì non li offre.</p>
       <p>I gol attesi della partita vengono divisi tra i due tempi secondo la quota storica di gol nel primo tempo del campionato (circa 44%). I cartellini usano un modello per squadra: quanti gialli prende e quanti ne fa prendere agli avversari, più il livello del campionato. Nelle coppe si usa la media dei due campionati.</p>
       <h2>Quote e coerenza dei mercati</h2>
       <p>Quando ci sono le quote (media dei bookmaker da football-data, oppure DraftKings tramite ESPN, gratuite), il sistema le pulisce dal margine e le mescola con il modello (90% mercato, 10% modello: è il peso che ha funzionato meglio nel backtest). Poi ricalcola i gol attesi delle due squadre in modo che <b>tutti</b> i mercati derivino dalla stessa partita: risultati esatti, gruppi, multigol, tempi, combo. Per questo una doppia chance come X2 non può più avere una quota equa più alta del solo 2. Le quote Sisal non si possono leggere in automatico (il sito blocca le richieste dall'estero, da dove gira l'aggiornamento), ma le quote italiane sono molto simili alla media.</p>

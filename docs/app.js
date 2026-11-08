@@ -21,6 +21,12 @@ const SENZA_DC = ['Gialli', 'Corner'];
 const esitiStat = N => SENZA_DC.includes(N) ? ['1', 'X', '2'] : ['1', 'X', '2', '1X', 'X2', '12'];
 // campionati non top (Belgio, Olanda, Portogallo): su Sisal gli 1X2 di corner, cartellini e tiri non ci sono sempre
 const MINORI = ['Jupiler Pro League (BEL)', 'Eredivisie (NED)', 'Primeira Liga (POR)'];
+// corner del 1° tempo e parziale/finale (gli unici mercati corner offerti da Sisal in Belgio, Olanda, Portogallo)
+const HCP = ['1:0', '0:1', '2:0', '0:2'];
+const CORNER_1T = p => [
+  ...['1', 'X', '2'].map(k => [`1T 1X2 corner ${k}`, `1° tempo 1X2 corner ${k}`]),
+  ...HCP.flatMap(h => ['1', 'X', '2'].map(k => [`1T handicap corner (${h}) ${k}`, `1° tempo handicap corner (${h}) ${k}`])),
+  ...['1', 'X', '2'].flatMap(a => ['1', 'X', '2'].map(b => [`Corner parziale/finale ${a}/${b}`, `Corner parziale/finale ${a}/${b}`]))];
 const ETI = { Gialli: '1X2 ammonizioni', Corner: '1X2 corner', Tiri: '1X2 tiri totali', 'Tiri in porta': '1X2 tiri in porta' };
 const FAMSTAT = { Gialli: 'cart', Corner: 'corner', Tiri: 'tiri', 'Tiri in porta': 'tiri' };
 const NOMESTAT = { Gialli: 'Cartellini gialli', Corner: 'Corner', Tiri: 'Tiri totali', 'Tiri in porta': 'Tiri in porta' };
@@ -35,7 +41,10 @@ function mercatiDi(p) {
   add('gol', 'Gol', p.Gol); add('gol', 'NoGol', p.NoGol);
   Object.keys(e).filter(k => k.includes(' + ')).forEach(k => add('combo', k, e[k]));
   ['1', 'X', '2', '1X', 'X2', 'Over 0.5', 'Under 0.5', 'Over 1.5', 'Under 1.5', 'Gol'].forEach(k => { add('t1', '1T ' + k, e['1T ' + k], '1° tempo ' + k); add('t2', '2T ' + k, e['2T ' + k], '2° tempo ' + k); });
+  const minore = MINORI.includes(p.Competizione);
+  CORNER_1T(p).forEach(([k, lab]) => add('corner', k, e[k], lab));
   Object.keys(LINEE).forEach(N => {
+    if (minore && (N === 'Gialli' || N === 'Corner')) return;   // su Sisal in questi campionati non ci sono
     const f = FAMSTAT[N], nm = NOMESTAT[N];
     LINEE[N].forEach(s => { add(f, `${N} Over ${s}`, e[`${N} Over ${s}`], `${nm} Over ${s}`); add(f, `${N} Under ${s}`, e[`${N} Under ${s}`], `${nm} Under ${s}`); });
     esitiStat(N).forEach(k => { add(f, `${ETI[N]} ${k}`, e[`${ETI[N]} ${k}`]); if (MINORI.includes(p.Competizione) && L.length) L[L.length - 1].incerto = true; });
@@ -184,7 +193,15 @@ function dettagli(p) {
       <div class="lab2">Totale partita</div>${tot}<div class="lab2">${ETI[N]} (chi ne fa di più)</div>${MINORI.includes(p.Competizione) ? '<p class="note">In questo campionato Sisal non sempre la offre: controlla prima. Nella schedina proposta entra solo se attivi la casella apposita.</p>' : ''}${x12}
       <div class="lab2">${C}</div>${sq('casa')}<div class="lab2">${O}</div>${sq('ospite')}`;
   };
-  const cart = stat('Gialli', `<span>Almeno un rosso</span><span>${pct(e['Almeno un rosso'])}</span><span>Media gialli ult.10</span><span>${C} ${n(sc['Gialli medi ult.10 casa'])} · ${O} ${n(sc['Gialli medi ult.10 ospite'])}</span>`);
+  const c1t = e['1T 1X2 corner 1'] == null ? '' : `<div class="lab2 big">1° tempo</div><div class="kv"><span>Corner attesi nel 1° tempo</span><span>${f1(e['Corner 1T attesi'])}</span></div>
+      <div class="lab2">1X2 corner 1° tempo (chi ne batte di più)</div>${griglia(p, ['1', 'X', '2'].map(k => [`1T 1X2 corner ${k}`, k, e[`1T 1X2 corner ${k}`]]))}
+      ${HCP.map(h => `<div class="lab2">1X2 handicap corner 1° tempo (${h})</div>${griglia(p, ['1', 'X', '2'].map(k => [`1T handicap corner (${h}) ${k}`, k, e[`1T handicap corner (${h}) ${k}`]]))}`).join('')}
+      <p class="note">Handicap (1:0) = la squadra di casa parte con un corner di vantaggio; (0:1) = parte avvantaggiata l'ospite.</p>
+      <div class="lab2">Corner parziale/finale (chi ne ha di più all'intervallo / a fine partita)</div>
+      <div class="mk mk3">${['1', 'X', '2'].flatMap(a => ['1', 'X', '2'].map(b => cella(p, `Corner parziale/finale ${a}/${b}`, `${a}/${b}`, e[`Corner parziale/finale ${a}/${b}`]))).join('')}</div>`;
+  const minore = MINORI.includes(p.Competizione);
+  const cornerSez = minore ? (c1t ? c1t + '<p class="note">In questo campionato Sisal offre solo questi mercati sui corner: gli altri sono nascosti.</p>' : '') : stat('Corner') + c1t;
+  const cart = minore ? '' : stat('Gialli', `<span>Almeno un rosso</span><span>${pct(e['Almeno un rosso'])}</span><span>Media gialli ult.10</span><span>${C} ${n(sc['Gialli medi ult.10 casa'])} · ${O} ${n(sc['Gialli medi ult.10 ospite'])}</span>`);
   const tiri = `<div class="lab2 big">Tiri in porta</div>${stat('Tiri in porta')}<div class="lab2 big">Tiri totali</div>${stat('Tiri')}`;
   // --- marcatori
   const M = p.Marcatori || {};
@@ -205,7 +222,7 @@ function dettagli(p) {
         <p class="note">Le lettere vanno dalla più vecchia (sinistra) alla più recente (destra). V = vittoria, N = pareggio, P = sconfitta.</p>
         <div class="lab2">Precedenti</div><div class="h2h">${(sc['Precedenti (ult.5)'] || '').split(' | ').map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
   const S = [['princ', 'Mercati principali e quote', principali], ['esatti', 'Risultati esatti a gruppi', esatti], ['multigol', 'Multigol', multigol],
-    ['combo', 'Combo', cmb], ['tempi', '1° e 2° tempo', tempi], ['cart', 'Cartellini', cart], ['corner', 'Corner', stat('Corner')],
+    ['combo', 'Combo', cmb], ['tempi', '1° e 2° tempo', tempi], ['cart', 'Cartellini', cart], ['corner', 'Corner', cornerSez],
     ['tiri', 'Tiri in porta e tiri totali', tiri], ['marc', 'Marcatori', marc],
     ['ass', 'Assenti', `<div class="lab2">${C}</div>${assenti(p['Assenti casa (lista)'], p['Assenti casa'])}<div class="lab2">${O}</div>${assenti(p['Assenti ospite (lista)'], p['Assenti ospite'])}`],
     ['forma', 'Forma e precedenti', forma]];
