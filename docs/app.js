@@ -19,6 +19,8 @@ const LINEE = { Gialli: ['2.5', '3.5', '4.5', '5.5', '6.5'], Corner: ['7.5', '8.
 const LINEE_SQ = { Gialli: ['0.5', '1.5', '2.5'], Corner: ['2.5', '3.5', '4.5', '5.5', '6.5'], Tiri: ['8.5', '10.5', '12.5', '14.5'], 'Tiri in porta': ['2.5', '3.5', '4.5', '5.5'] };
 const SENZA_DC = ['Gialli', 'Corner'];
 const esitiStat = N => SENZA_DC.includes(N) ? ['1', 'X', '2'] : ['1', 'X', '2', '1X', 'X2', '12'];
+// campionati non top (Belgio, Olanda, Portogallo): su Sisal gli 1X2 di corner, cartellini e tiri non ci sono sempre
+const MINORI = ['Jupiler Pro League (BEL)', 'Eredivisie (NED)', 'Primeira Liga (POR)'];
 const ETI = { Gialli: '1X2 ammonizioni', Corner: '1X2 corner', Tiri: '1X2 tiri totali', 'Tiri in porta': '1X2 tiri in porta' };
 const FAMSTAT = { Gialli: 'cart', Corner: 'corner', Tiri: 'tiri', 'Tiri in porta': 'tiri' };
 const NOMESTAT = { Gialli: 'Cartellini gialli', Corner: 'Corner', Tiri: 'Tiri totali', 'Tiri in porta': 'Tiri in porta' };
@@ -36,7 +38,7 @@ function mercatiDi(p) {
   Object.keys(LINEE).forEach(N => {
     const f = FAMSTAT[N], nm = NOMESTAT[N];
     LINEE[N].forEach(s => { add(f, `${N} Over ${s}`, e[`${N} Over ${s}`], `${nm} Over ${s}`); add(f, `${N} Under ${s}`, e[`${N} Under ${s}`], `${nm} Under ${s}`); });
-    esitiStat(N).forEach(k => add(f, `${ETI[N]} ${k}`, e[`${ETI[N]} ${k}`]));
+    esitiStat(N).forEach(k => { add(f, `${ETI[N]} ${k}`, e[`${ETI[N]} ${k}`]); if (MINORI.includes(p.Competizione) && L.length) L[L.length - 1].incerto = true; });
     ['casa', 'ospite'].forEach(sq => LINEE_SQ[N].forEach(s => {
       const t = sq === 'casa' ? p.Casa : p.Ospite;
       add(f, `${N} ${sq} Over ${s}`, e[`${N} ${sq} Over ${s}`], `${nm} ${t} Over ${s}`); add(f, `${N} ${sq} Under ${s}`, e[`${N} ${sq} Under ${s}`], `${nm} ${t} Under ${s}`);
@@ -179,7 +181,7 @@ function dettagli(p) {
     const x12 = griglia(p, esitiStat(N).map(k => [`${ETI[N]} ${k}`, k, e[`${ETI[N]} ${k}`]]));
     const sq = s => griglia(p, LINEE_SQ[N].flatMap(l => [[`${N} ${s} Over ${l}`, `Over ${l}`, e[`${N} ${s} Over ${l}`]], [`${N} ${s} Under ${l}`, `Under ${l}`, e[`${N} ${s} Under ${l}`]]]));
     return `<div class="kv"><span>${NOMESTAT[N]} attesi</span><span>${f1(e[`${N} attesi`])} (${C} ${f1(e[`${N} casa attesi`])} · ${O} ${f1(e[`${N} ospite attesi`])})</span>${extraKV}</div>
-      <div class="lab2">Totale partita</div>${tot}<div class="lab2">${ETI[N]} (chi ne fa di più)</div>${x12}
+      <div class="lab2">Totale partita</div>${tot}<div class="lab2">${ETI[N]} (chi ne fa di più)</div>${MINORI.includes(p.Competizione) ? '<p class="note">In questo campionato Sisal non sempre la offre: controlla prima. Nella schedina proposta entra solo se attivi la casella apposita.</p>' : ''}${x12}
       <div class="lab2">${C}</div>${sq('casa')}<div class="lab2">${O}</div>${sq('ospite')}`;
   };
   const cart = stat('Gialli', `<span>Almeno un rosso</span><span>${pct(e['Almeno un rosso'])}</span><span>Media gialli ult.10</span><span>${C} ${n(sc['Gialli medi ult.10 casa'])} · ${O} ${n(sc['Gialli medi ult.10 ospite'])}</span>`);
@@ -284,7 +286,7 @@ function schedina() {
   P.forEach(p => {
     const C = modo === 'gruppi'
       ? mercatiDi(p).filter(m => m.fam === 'esatti' && /Multi Esiti|Cluster risultati/.test(m.k) && !/ALTRO|pareggio/.test(m.k) && m.p >= soglia)
-      : mercatiDi(p).filter(m => fam.includes(m.fam) && m.p >= soglia && 1 / m.p >= qmin);
+      : mercatiDi(p).filter(m => fam.includes(m.fam) && m.p >= soglia && 1 / m.p >= qmin && (!m.incerto || $('#s-incerti').checked));
     if (!C.length) return;
     C.sort((a, b) => modo === 'quota' ? a.p - b.p : b.p - a.p);
     scelte.push({ p, m: C[0] });
