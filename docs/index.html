@@ -62,8 +62,10 @@
       <div class="s-opt">
         <div class="row">
           <select id="s-giorno" aria-label="Giorno"></select>
-          <select id="s-comp" aria-label="Competizione"><option value="">Tutte le competizioni</option></select>
         </div>
+        <div class="comp-h"><span class="lab">Competizioni</span><button type="button" class="btn-link" id="s-comp-tutte">Tutte</button><button type="button" class="btn-link" id="s-comp-nessuna">Nessuna</button></div>
+        <p class="mini">Togli la spunta per escludere un campionato: la scelta resta salvata.</p>
+        <div class="fam" id="s-comp"></div>
         <label class="lab">Probabilità minima di ogni giocata: <b id="s-soglia-v">60%</b>
           <input type="range" id="s-soglia" min="20" max="90" step="5" value="60"></label>
         <div class="row">

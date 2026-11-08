@@ -293,12 +293,14 @@ function ticket(titolo, sel, nota) {
 function schedina() {
   if (!DATA) return;
   const soglia = +$('#s-soglia').value / 100, modo = $('#s-modo').value, qmin = +$('#s-qmin').value, max = +$('#s-max').value;
-  const g = $('#s-giorno').value, comp = $('#s-comp').value, alta = $('#s-alta').checked;
+  const g = $('#s-giorno').value, alta = $('#s-alta').checked;
+  const comp = new Set([...document.querySelectorAll('.s-comp:checked')].map(x => x.value));
+  try { localStorage.setItem('esclusi', JSON.stringify([...document.querySelectorAll('.s-comp:not(:checked)')].map(x => x.value))); } catch (e) {}
   const fam = [...document.querySelectorAll('.s-fam:checked')].map(x => x.value);
   $('#s-soglia-v').textContent = Math.round(soglia * 100) + '%';
   const lim = g === 'p4' ? new Date(new Date(oggiKey() + 'T12:00').getTime() + 3 * 864e5).toISOString().slice(0, 10) : null;
   const okG = k => !g || (g === 'p4' ? k >= oggiKey() && k <= lim : k === g);
-  const P = DATA.partite.filter(p => okG(dKey(p.Data)) && (!comp || p.Competizione === comp) && (!alta || p['Affidabilità dati'] === 'ALTA'));
+  const P = DATA.partite.filter(p => okG(dKey(p.Data)) && comp.has(p.Competizione) && (!alta || p['Affidabilità dati'] === 'ALTA'));
   const scelte = [];
   P.forEach(p => {
     const C = modo === 'gruppi'
@@ -311,7 +313,7 @@ function schedina() {
   scelte.sort((a, b) => modo === 'quota' ? a.m.p - b.m.p : b.m.p - a.m.p);
   const sel = scelte.slice(0, max).sort((a, b) => a.p.Data.localeCompare(b.p.Data));
   $('#s-out').innerHTML = ticket('Schedina proposta', sel,
-    `Nessuna giocata supera il ${Math.round(soglia * 100)}% con quota equa almeno ${qmin.toFixed(2)}. Abbassa la soglia, la quota minima o aggiungi altri mercati.`) +
+    `Nessuna giocata supera il ${Math.round(soglia * 100)}% con quota equa almeno ${qmin.toFixed(2)}. Abbassa la soglia, la quota minima o aggiungi altri mercati o competizioni.`) +
     `<p class="note">Partite considerate: ${P.length} · con almeno una giocata valida: ${scelte.length}.</p>`;
   const mie = MIA.map(x => { const p = DATA.partite.find(q => pid(q) === x.id); const m = p && mercatiDi(p).find(m => m.k === x.k); return p && m ? { p, m, manuale: true } : null; }).filter(Boolean)
     .sort((a, b) => a.p.Data.localeCompare(b.p.Data));
@@ -325,7 +327,10 @@ function initSchedina() {
   const keys = [...new Set(DATA.partite.map(p => dKey(p.Data)))].sort(), oggi = oggiKey();
   $('#s-giorno').innerHTML = '<option value="">Tutti i giorni</option><option value="p4">Prossimi 4 giorni (una giornata)</option>' + keys.map(k => `<option value="${k}">${k === oggi ? 'Oggi – ' : ''}${fmtDay(k)}</option>`).join('');
   $('#s-giorno').value = keys.includes(oggi) ? oggi : (keys.find(k => k >= oggi) || '');
-  [...new Set(DATA.partite.map(p => p.Competizione))].sort().forEach(c => $('#s-comp').insertAdjacentHTML('beforeend', `<option>${esc(c)}</option>`));
+  let escl = []; try { escl = JSON.parse(localStorage.getItem('esclusi') || '[]'); } catch (e) {}
+  $('#s-comp').innerHTML = [...new Set(DATA.partite.map(p => p.Competizione))].sort().map(c => `<label class="chk"><input type="checkbox" class="s-comp" value="${esc(c)}" ${escl.includes(c) ? '' : 'checked'}> ${esc(c)}</label>`).join('');
+  const tutte = v => { document.querySelectorAll('.s-comp').forEach(x => x.checked = v); schedina(); };
+  $('#s-comp-tutte').onclick = () => tutte(true); $('#s-comp-nessuna').onclick = () => tutte(false);
   $('#s-fam').innerHTML = Object.entries(FAM).map(([k, v]) => `<label class="chk"><input type="checkbox" class="s-fam" value="${k}" ${['esito', 'gol', 'combo', 'multigol'].includes(k) ? 'checked' : ''}> ${v}</label>`).join('');
   document.querySelectorAll('#v-schedina select, #v-schedina input').forEach(x => x.oninput = x.onchange = schedina);
   $('#s-modo').onchange = () => { if ($('#s-modo').value === 'gruppi' && +$('#s-soglia').value > 40) $('#s-soglia').value = 30; schedina(); };
