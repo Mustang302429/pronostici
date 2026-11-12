@@ -184,3 +184,4 @@ th.n,td.n{text-align:right}
 .mini{font-weight:400;color:var(--mut);font-size:var(--text-xs,12px)}
 .btn-link{background:none;border:0;color:var(--acc);cursor:pointer;font:inherit;font-size:var(--text-sm);padding:0 0 0 var(--s3);text-decoration:underline}
 .comp-h{display:flex;align-items:center;gap:var(--s3)}.comp-h .lab{margin-right:auto}
+.sp-mk .mc.wide{grid-column:1 / -1}

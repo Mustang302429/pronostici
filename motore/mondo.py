@@ -177,6 +177,12 @@ def costruisci(oggi=None, giorni=11):
             leghe[k] = {"nome": n, "paese": paese, "sez": "G", "stats": statistiche(c, k, oggi=oggi), "principale": True}
     except Exception:
         pass
+    try:   # nazionali (storico internazionale + ESPN)
+        from .nazionali import costruisci as nazionali
+        pn, ln = nazionali(oggi)
+        partite += pn; leghe.update(ln)
+    except Exception as ex:
+        print(f"[mondo] nazionali non disponibili: {ex}", flush=True)
     out = {"aggiornato": pd.Timestamp.now(tz="Europe/Rome").strftime("%Y-%m-%dT%H:%M"),
            "leghe": leghe, "partite": sorted(partite, key=lambda x: x["data"])}
     f = BASE / "docs" / "mondo.json"

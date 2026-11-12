@@ -89,8 +89,9 @@
   <section id="v-speciali" class="view">
     <div class="head"><h1>Schedine speciali</h1><p class="meta" id="sp-agg">Caricamento…</p></div>
     <div class="seg" role="tablist" aria-label="Sezione">
-      <button class="seg-b on" data-m="1x2">Solo 1X2 · serali</button>
+      <button class="seg-b on" data-m="1x2">1X2 serali</button>
       <button class="seg-b" data-m="gol">Campionati da gol</button>
+      <button class="seg-b" data-m="naz">Nazionali</button>
     </div>
     <p class="note" id="sp-intro"></p>
     <div class="filters">
@@ -101,6 +102,12 @@
           <option value="Over 2.5">Over 2.5</option><option value="Over 1.5">Over 1.5</option>
           <option value="1T Over 0.5">1° tempo Over 0.5</option><option value="Gol">Gol (segnano entrambe)</option>
           <option value="Over 3.5">Over 3.5</option><option value="1T Over 1.5">1° tempo Over 1.5</option>
+        </select>
+        <select id="sp-merc-naz" aria-label="Scommessa nazionali" hidden>
+          <option value="auto">Segno più probabile (1, X o 2)</option><option value="dc">Doppia chance più probabile (1X, X2, 12)</option>
+          <option value="Over 1.5">Over 1.5</option><option value="Over 2.5">Over 2.5</option><option value="Under 2.5">Under 2.5</option>
+          <option value="Under 3.5">Under 3.5</option><option value="Gol">Gol (segnano entrambe)</option><option value="NoGol">No Gol</option>
+          <option value="1T Over 0.5">1° tempo Over 0.5</option>
         </select>
         <label class="chk" id="sp-sera-l"><input type="checkbox" id="sp-sera"> Solo dalle 20 in poi (ora italiana)</label>
         <label class="chk"><input type="checkbox" id="sp-alta" checked> Solo squadre con storico</label>
@@ -114,6 +121,7 @@
           <input type="range" id="sp-soglia" min="30" max="90" step="5" value="55"></label>
         <div class="row">
           <label class="lab">Massimo partite<select id="sp-max"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>10</option></select></label>
+          <label class="lab">Quota equa minima<select id="sp-qmin"><option value="1.01">nessun limite</option><option value="1.15">1,15</option><option value="1.2" selected>1,20</option><option value="1.3">1,30</option><option value="1.5">1,50</option></select></label>
           <label class="lab">Ordine<select id="sp-modo"><option value="sicura">Più probabili prima</option><option value="valore">Prima quelle con quota book più alta della equa</option></select></label>
         </div>
         <div id="sp-out"></div>
@@ -157,6 +165,7 @@
       <h2>Corner, tiri, tiri in porta, marcatori</h2>
       <p>Corner e tiri usano lo stesso modello dei cartellini: quanti ne produce ogni squadra e quanti ne concede, più il livello del campionato (dati football-data dal 2022). I marcatori usano gol e xG stagionali del giocatore (FotMob), i minuti attesi e i gol attesi della squadra; gli indisponibili sono esclusi.</p>
       <h2>Schedine speciali</h2>
+      <p><b>Nazionali</b>: storico gratuito di oltre 6.000 partite tra nazionali dal 2019 (risultati e minuti dei gol), più calendario, ultimi risultati e quote DraftKings da ESPN. Ogni nazionale ha la sua forza e il modello impara anche quanto valgono le confederazioni tra loro (UEFA, CONMEBOL, CAF...). Verifica su 2.398 partite giocate tra settembre 2024 e ottobre 2026 (il modello non le conosceva): i favoriti dati al 70-80% hanno vinto il 75% delle volte, quelli oltre l'80% il 91%; sull'Over 2.5 previsto 50% è uscito il 51%. Quando ci sono le quote DraftKings il risultato segue il mercato.</p>
       <p><b>Solo 1X2 · serali</b>: Argentina, Brasile (Serie A e B), Colombia, Cile, Uruguay, Perù, Ecuador, Paraguay, Bolivia, Messico e MLS. Stesso modello dei campionati principali (forza d'attacco e di difesa, partite recenti più pesanti) su circa due anni e mezzo di risultati ESPN, mescolato con le quote DraftKings quando ci sono. Backtest sugli ultimi 6 mesi: il modello prevede l'1X2 meglio della semplice media del campionato e, quando dà un favorito al 60% o più, quel favorito ha vinto il 67% delle volte.</p>
       <p><b>Campionati da gol</b>: Bundesliga, Eredivisie, Eerste Divisie, Norvegia, MLS, Bolivia, Danimarca, Cina, Australia, Arabia Saudita, Austria e 2. Bundesliga: quelli con più Over nell'ultimo anno. Il 1° tempo si ricava dal minuto dei gol. Sugli Over il modello "squadra per squadra" da solo esagerava un po', quindi viene mescolato 50/50 con la media del campionato. Con questa correzione è tarato: quando dice Over 2.5 al 73%, nel passato è uscito il 72%.</p>
       <h2>Limiti onesti</h2>
