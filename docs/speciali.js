@@ -2,7 +2,7 @@
 // 1) Solo 1X2 nei campionati serali (Sudamerica, Messico, MLS)
 // 2) Campionati da gol: una sola scommessa uguale per tutte le partite (Over 2.5, Over 1.5, 1° tempo Over 0.5...)
 let MONDO = null, SPM = '1x2', spGiorno = null;
-const SPSEL = { '1x2': [], gol: [], naz: [] };
+const SPSEL = Object.assign({ '1x2': [], gol: [], naz: [] }, LS('spsel', {}));
 const SEZ = { '1x2': 'N', gol: 'G', naz: 'Z' };            // {id, k}
 const STATK = { 'Over 2.5': 'O25', 'Over 1.5': 'O15', 'Over 3.5': 'O35', Gol: 'GG', '1T Over 0.5': 'T1O05', '1T Over 1.5': 'T1O15' };
 const NOMEM = { 'Over 2.5': 'Over 2.5', 'Over 1.5': 'Over 1.5', 'Over 3.5': 'Over 3.5', Gol: 'Gol', '1T Over 0.5': '1° tempo Over 0.5', '1T Over 1.5': '1° tempo Over 1.5',
@@ -116,10 +116,10 @@ function spTicket(titolo, sel, vuoto, manuale) {
   return `<div class="ticket"><div class="t-h"><b>${titolo}</b><span>${sel.length} partit${sel.length === 1 ? 'a' : 'e'}</span></div>
     ${sel.map((s, i) => `<div class="t-r"><div class="t-m"><small>${fmtDay(dKey(s.p.data))} ${s.p.data.slice(11, 16)} · ${esc(spNome(s.p.comp))}</small><b>${esc(s.p.casa)} – ${esc(s.p.ospite)}</b></div>
       <div class="t-p"><span class="t-k">${esc(NOMEM[s.k] || s.k)}</span><span class="t-v">${pct(s.v)} <small>equa ${quota(s.v)}${bks[i] ? ` · book ${(+bks[i]).toFixed(2)}` : ''}</small></span></div>
-      ${manuale ? `<button class="t-x" data-id="${esc(s.p.sid)}" aria-label="Togli">×</button>` : ''}</div>`).join('')}
+      ${manuale ? `<button class="t-x" data-id="${esc(s.p.sid)}" aria-label="Togli">×</button>` + qsCampo(s.p.sid, s.k, s.v) : ''}</div>`).join('')}
     <div class="t-f"><div><small>Probabilità che escano tutte</small><b>${(tot * 100).toFixed(tot < 0.1 ? 1 : 0)}%</b></div>
       <div><small>Quota equa totale</small><b>${quota(tot)}</b></div>${tb ? `<div><small>Quota book totale</small><b>${tb.toFixed(2)}</b></div>` : ''}</div>
-    <p class="note">Le quote "book" sono DraftKings o la media dei bookmaker: su Sisal possono essere un po' diverse, controlla prima di giocare.</p></div>`;
+    ${manuale ? qsRiepilogo(sel.map(s => ({ id: s.p.sid, k: s.k, v: s.v }))) : ''}<p class="note">Le quote "book" sono DraftKings o la media dei bookmaker: su Sisal possono essere un po' diverse, controlla prima di giocare.</p></div>`;
 }
 
 function spSchedina() {
@@ -132,6 +132,7 @@ function spSchedina() {
   const sel = C.slice(0, max).sort((a, b) => a.p.data.localeCompare(b.p.data));
   $('#sp-out').innerHTML = spTicket('Proposta', sel, `Nessuna partita supera il ${Math.round(soglia * 100)}%. Abbassa la soglia o la quota minima, oppure scegli "Tutti" i giorni.`) +
     `<p class="note">Partite considerate: ${spFiltrate().length} · sopra soglia: ${C.length}.</p>`;
+  LSset('spsel', SPSEL);
   const tutte = spPartite();
   const mie = SPSEL[SPM].map(x => { const p = tutte.find(q => q.sid === x.id); return p ? { p, k: x.k, v: p.p[x.k] } : null; }).filter(Boolean).sort((a, b) => a.p.data.localeCompare(b.p.data));
   $('#sp-mia').innerHTML = spTicket(SPM === '1x2' ? 'La tua schedina 1X2' : SPM === 'naz' ? 'La tua schedina nazionali' : 'La tua schedina gol', mie, 'Vuota. Tocca una percentuale nella lista qui sotto per aggiungerla.', true) +
@@ -158,6 +159,24 @@ function spRender() {
   });
 }
 
+// ---------------------------------------------------------------- verifica di Speciali e Nazionali
+function verificaSp() {
+  const box = $('#verifica-sp'); if (!box || !MONDO) return;
+  const v = MONDO.verifica || {}, b = MONDO.backtest || {};
+  const righe = ['N', 'G', 'Z'].map(s => v[s]).filter(Boolean);
+  const cal = (n, prev, reale) => n ? `${pct(reale)} <small>(prev. ${pct(prev)}, ${n})</small>` : '–';
+  const live = righe.some(r => r.n) ? `<table><thead><tr><th>Sezione</th><th class="n">Partite</th><th class="n">Favorito 1X2</th><th class="n">Favorito ≥60%</th><th class="n">Over/Under 2.5</th><th class="n">Over 1.5 ≥70%</th><th class="n">1° tempo Over 0.5 ≥70%</th></tr></thead><tbody>` +
+    righe.map(r => r.n ? `<tr><td>${esc(r.nome)}</td><td class="n">${r.n}</td><td class="n">${pct(r.fav)}</td><td class="n">${cal(r.fav60_n, r.fav60_prev, r.fav60)}</td><td class="n">${pct(r.ou25)}</td><td class="n">${cal(r.o15_n, r.o15_prev, r.o15_reale)}</td><td class="n">${cal(r.t1_n, r.t1_prev, r.t1_reale)}</td></tr>`
+      : `<tr><td>${esc(r.nome)}</td><td class="n">0</td><td colspan="5" class="n">ancora nessuna partita giocata</td></tr>`).join('') + '</tbody></table>'
+    : `<div class="empty">Il conteggio è partito ${v.dal ? 'il ' + fmtDay(v.dal) : 'con questo aggiornamento'}: i numeri compaiono appena si giocano le prime partite.</div>`;
+  const bt = (nome, d) => d ? `<tr><td>${nome}</td><td class="n">${d.n.toLocaleString('it-IT')}</td><td class="n">${pct(d.favorito)}</td><td class="n">${pct(d.fav60)} <small>(${d.fav60_n})</small></td><td class="n">+${((1 - d.ll_modello / d.ll_media) * 100).toFixed(1)}%</td></tr>` : '';
+  box.innerHTML = `<h2>Speciali e Nazionali: pronostici emessi e verificati</h2>
+    <p class="note">Ogni pronostico viene salvato prima del calcio d'inizio e poi confrontato con il risultato vero. "Favorito ≥60%": quante volte ha vinto la squadra data almeno al 60% (tra parentesi quanto prevedeva il sistema e su quante partite).</p>${live}
+    <h2>Speciali e Nazionali: verifica sul passato</h2>
+    <p class="note">Partite già giocate che il modello non conosceva. "Meglio della media" = quanto prevede meglio di chi giocasse sempre le frequenze del campionato (log-loss 1X2).</p>
+    <table><thead><tr><th>Sezione</th><th class="n">Partite</th><th class="n">Favorito 1X2</th><th class="n">Favorito ≥60%</th><th class="n">Meglio della media</th></tr></thead><tbody>${bt('Campionati serali e da gol', b.speciali)}${bt('Nazionali', b.nazionali)}</tbody></table>`;
+}
+
 document.querySelectorAll('.seg-b').forEach(b => b.onclick = () => {
   if (b.dataset.m === SPM) return;
   SPM = b.dataset.m; spGiorno = null;
@@ -172,7 +191,9 @@ document.querySelectorAll('.seg-b').forEach(b => b.onclick = () => {
   catch (e) { $('#sp-agg').textContent = 'Dati non ancora disponibili: compariranno dopo il prossimo aggiornamento.'; $('#sp-lista').innerHTML = ''; return; }
   const a = MONDO.aggiornato;
   $('#sp-agg').textContent = `Aggiornato ${fmtDay(a.slice(0, 10))} alle ${a.slice(11, 16)} · ${MONDO.partite.length} partite (fonte ESPN)`;
-  spRender();
+  spRender(); qsRidisegna.push(spRender);
+  if (typeof valore === 'function') valore();
+  verificaSp();
   // quando arrivano anche i dati principali, aggiungo Bundesliga ed Eredivisie alla sezione gol
   const t = setInterval(() => { if (DATA) { clearInterval(t); if (SPM === 'gol') spRender(); } }, 500);
 })();

@@ -136,6 +136,62 @@ def statistiche(d, comp, giorni=365, oggi=None):
     return s
 
 
+ARCHIVIO = BASE / "dati" / "archivio_mondo.csv"
+
+
+def _backtest():
+    out = {}
+    for k, f in (("speciali", "backtest_mondo.json"), ("nazionali", "backtest_nazionali.json")):
+        try:
+            d = json.loads((BASE / "dati" / f).read_text(encoding="utf-8")); out[k] = d.get("tutti", d)
+        except Exception:
+            pass
+    return out
+SEZIONI = {"N": "1X2 serali", "G": "Campionati da gol", "Z": "Nazionali"}
+
+
+def archivia_e_verifica(partite, leghe, ris):
+    """Salva i pronostici emessi prima del calcio d'inizio e li confronta con i risultati veri."""
+    ora = pd.Timestamp.now(tz="Europe/Rome").tz_localize(None)
+    righe = []
+    for p in partite:
+        if pd.Timestamp(p["data"]) <= ora: continue
+        q = p["p"]; uid = ("naz." if p["comp"].startswith("naz.") else "") + str(p["id"])
+        righe.append({"id": uid, "comp": p["comp"], "sez": leghe.get(p["comp"], {}).get("sez", ""), "data": p["data"],
+                      "casa": p["casa"], "ospite": p["ospite"], "p1": q["1"], "pX": q["X"], "p2": q["2"],
+                      "o15": q.get("Over 1.5"), "o25": q.get("Over 2.5"), "gg": q.get("Gol"), "t1o05": q.get("1T Over 0.5"),
+                      "quote": bool(p.get("fonte")), "emesso": ora.strftime("%Y-%m-%d %H:%M")})
+    nuovo = pd.DataFrame(righe)
+    vecchio = pd.read_csv(ARCHIVIO, dtype={"id": str}) if ARCHIVIO.exists() else pd.DataFrame()
+    a = pd.concat([vecchio, nuovo], ignore_index=True) if len(vecchio) else nuovo
+    if not len(a): return {}
+    a["id"] = a["id"].astype(str)
+    a = a.drop_duplicates("id", keep="last").sort_values("data")
+    ARCHIVIO.parent.mkdir(parents=True, exist_ok=True); a.to_csv(ARCHIVIO, index=False)
+    r = ris.drop_duplicates("id", keep="last"); r["id"] = r["id"].astype(str)
+    v = a.merge(r, on="id", how="inner")
+    v = v[pd.to_datetime(v.data) < ora]
+    out = {}
+    for s, nome in SEZIONI.items():
+        x = v[v.sez.fillna("").str.contains(s)]
+        if not len(x): out[s] = {"nome": nome, "n": 0}; continue
+        P = x[["p1", "pX", "p2"]].values; y = np.where(x.gc > x.go, 0, np.where(x.gc == x.go, 1, 2))
+        fav = P.argmax(1) == y; f = P.max(1); tot = x.gc + x.go
+        d = {"nome": nome, "n": int(len(x)), "fav": float(fav.mean()), "fav60_n": int((f >= .6).sum()),
+             "fav60": float(fav[f >= .6].mean()) if (f >= .6).any() else None,
+             "fav60_prev": float(f[f >= .6].mean()) if (f >= .6).any() else None,
+             "ou25": float(((x.o25 > .5) == (tot > 2.5)).mean())}
+        k = x.o15 >= .7
+        if k.any(): d.update(o15_n=int(k.sum()), o15_prev=float(x.o15[k].mean()), o15_reale=float((tot[k] > 1.5).mean()))
+        h = x.dropna(subset=["htc"]) if "htc" in x else x.iloc[:0]
+        k = h.t1o05 >= .7
+        if len(h) and k.any(): d.update(t1_n=int(k.sum()), t1_prev=float(h.t1o05[k].mean()), t1_reale=float(((h.htc + h.hto)[k] > 0.5).mean()))
+        out[s] = d
+    out["dal"] = str(a.emesso.min())[:10]
+    print(f"[mondo] verifica: {len(v)} partite speciali già giocate e confrontate", flush=True)
+    return out
+
+
 def costruisci(oggi=None, giorni=11):
     oggi = pd.Timestamp(oggi or pd.Timestamp.now(tz="Europe/Rome").date())
     print("[mondo] scarico risultati e calendario (ESPN)...", flush=True)
@@ -179,12 +235,18 @@ def costruisci(oggi=None, giorni=11):
         pass
     try:   # nazionali (storico internazionale + ESPN)
         from .nazionali import costruisci as nazionali
-        pn, ln = nazionali(oggi)
+        pn, ln, rn = nazionali(oggi)
         partite += pn; leghe.update(ln)
     except Exception as ex:
         print(f"[mondo] nazionali non disponibili: {ex}", flush=True)
+        rn = pd.DataFrame(columns=["id", "gc", "go"])
+    ris = pd.concat([gioc[["id", "gc", "go", "htc", "hto"]].assign(id=lambda x: x.id.astype(str)), rn], ignore_index=True)
+    try:
+        verifica = archivia_e_verifica(partite, leghe, ris)
+    except Exception as ex:
+        print(f"[mondo] verifica non riuscita: {ex}", flush=True); verifica = {}
     out = {"aggiornato": pd.Timestamp.now(tz="Europe/Rome").strftime("%Y-%m-%dT%H:%M"),
-           "leghe": leghe, "partite": sorted(partite, key=lambda x: x["data"])}
+           "leghe": leghe, "partite": sorted(partite, key=lambda x: x["data"]), "verifica": verifica, "backtest": _backtest()}
     f = BASE / "docs" / "mondo.json"
     f.write_text(json.dumps(_pulisci(out), ensure_ascii=False), encoding="utf-8")
     print(f"[mondo] FATTO: {len(partite)} partite in docs/mondo.json", flush=True)

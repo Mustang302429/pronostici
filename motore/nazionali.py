@@ -222,9 +222,10 @@ def costruisci(oggi=None, giorni=11):
     leghe = {"naz." + k: {"nome": v[0], "paese": v[1], "sez": "Z", "stats": st.get(v[1], st.get("TUTTE"))} for k, v in LEGHE.items()}
     leghe["naz.TUTTE"] = {"nome": "Tutte le nazionali", "paese": "Mondo", "sez": "", "stats": st.get("TUTTE")}
     print(f"[nazionali] {len(partite)} partite in programma (modello su {m.n_partite} partite)", flush=True)
-    return partite, leghe
+    ris = e[e.gc.notna()][["id", "gc", "go"]].assign(id=lambda x: "naz." + x.id.astype(str))
+    return partite, leghe, ris
 
 
 if __name__ == "__main__":
-    P, L = costruisci()
+    P, L, _ = costruisci()
     for p in P[:15]: print(p["data"], p["casa"], "-", p["ospite"], p["p"]["1"], p["p"]["X"], p["p"]["2"], p["fonte"], p["affidabilita"])

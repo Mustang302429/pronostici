@@ -70,7 +70,43 @@ function book(p, k) {
   return null;
 }
 const pid = p => p.Data + '|' + p.Casa + '|' + p.Ospite;
-let MIA = [];   // schedina personale: {id, k}
+
+// ---------------------------------------------------------------- quota Sisal a mano, valore e puntata consigliata
+const LS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+const LSset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+let QS = LS('qsisal', {}), BUDGET = +LS('budget', 0) || 0;
+const qsK = (id, k) => id + '#' + k;
+const numIt = s => { const v = parseFloat(String(s).replace(',', '.')); return v > 1 ? v : null; };
+const eur = v => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+function qsCampo(id, k, v) {
+  const q = QS[qsK(id, k)], ev = q ? v * q - 1 : null;
+  return `<div class="qs"><label>Quota Sisal <input type="text" inputmode="decimal" class="qs-in" data-q="${esc(qsK(id, k))}" value="${q ? String(q).replace('.', ',') : ''}" placeholder="es. 1,85" aria-label="Quota Sisal"></label>` +
+    (ev == null ? '' : `<span class="qs-v ${ev > 0 ? 'pos' : 'neg'}">${ev > 0 ? `valore +${(ev * 100).toFixed(1)}%` : `niente valore (${(ev * 100).toFixed(1)}%)`}</span>`) + '</div>';
+}
+// riepilogo della schedina con le quote Sisal: valore atteso e puntata (1/4 di Kelly, massimo 5% del budget)
+function qsRiepilogo(righe) {   // righe: [{id, k, v}]
+  const qs = righe.map(r => QS[qsK(r.id, r.k)]);
+  const bud = `<label class="qs qs-b">Il tuo budget totale <input type="text" inputmode="decimal" class="qs-budget" value="${BUDGET ? String(BUDGET).replace('.', ',') : ''}" placeholder="es. 100" aria-label="Budget"> €</label>`;
+  if (!qs.every(Boolean)) return `<div class="qs-box"><p class="note">Scrivi la quota Sisal di ogni giocata: l'app ti dice se la schedina ha valore e quanto puntare.</p>${bud}</div>`;
+  const P = righe.reduce((a, r) => a * r.v, 1), Q = qs.reduce((a, b) => a * b, 1), ev = P * Q - 1;
+  const kelly = Math.max(0, (P * Q - 1) / (Q - 1)) / 4, perc = Math.min(kelly, 0.05);
+  const punt = BUDGET ? Math.max(0, Math.floor(BUDGET * perc * 2) / 2) : null;
+  const giudizio = ev <= 0 ? '<b class="neg">Non conviene:</b> Sisal paga meno di quanto vale la schedina secondo il sistema.'
+    : ev < 0.03 ? '<b>Valore minimo:</b> il vantaggio è dentro il margine di errore del modello. Se giochi, punta poco.'
+    : '<b class="pos">Ha valore:</b> Sisal paga più della quota equa.';
+  return `<div class="qs-box"><div class="t-f"><div><small>Quota Sisal totale</small><b>${Q.toFixed(2)}</b></div><div><small>Valore atteso</small><b class="${ev > 0 ? 'pos' : 'neg'}">${ev > 0 ? '+' : ''}${(ev * 100).toFixed(1)}%</b></div>
+    <div><small>Puntata consigliata</small><b>${ev <= 0 ? '0 €' : punt == null ? 'scrivi il budget' : punt < 0.5 ? 'meno di 0,50 €' : eur(punt)}</b></div></div>
+    <p class="note">${giudizio}${ev > 0 ? ` Con ${(perc * 100).toFixed(1)}% del budget: un quarto della puntata "ottimale" (Kelly), mai più del 5%, così una serie storta non ti svuota il conto.` : ''}</p>${bud}</div>`;
+}
+let qsRidisegna = [];   // funzioni da richiamare quando cambia una quota (schedina principale e speciali)
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.matches('.qs-in')) { const v = numIt(t.value); if (v) QS[t.dataset.q] = v; else delete QS[t.dataset.q]; LSset('qsisal', QS); }
+  else if (t.matches('.qs-budget')) { BUDGET = numIt(t.value) || +String(t.value).replace(',', '.') || 0; LSset('budget', BUDGET); }
+  else return;
+  const y = window.scrollY; qsRidisegna.forEach(f => f()); window.scrollTo(0, y);
+});
+let MIA = LS('mia', []);   // schedina personale: {id, k}
 const inMia = (p, k) => MIA.some(x => x.id === pid(p) && x.k === k);
 
 // cambiando scheda si ricorda dove eri arrivato (posizione e partite aperte restano uguali)
@@ -277,19 +313,20 @@ function syncSel() { document.querySelectorAll('.mc').forEach(x => x.classList.t
 function contaMia() { const t = $('#tab-sch'); t.textContent = MIA.length ? `Schedina (${MIA.length})` : 'Schedina'; }
 
 // ---------------------------------------------------------------- schedina automatica
-function ticket(titolo, sel, nota) {
+function ticket(titolo, sel, nota, conSisal) {
   if (!sel.length) return `<div class="ticket"><div class="t-h"><b>${titolo}</b></div><div class="empty">${nota}</div></div>`;
   const tot = sel.reduce((a, s) => a * s.m.p, 1);
   return `<div class="ticket"><div class="t-h"><b>${titolo}</b><span>${sel.length} partit${sel.length === 1 ? 'a' : 'e'}</span></div>
     ${sel.map(s => `<div class="t-r">
       <div class="t-m"><small>${fmtDay(dKey(s.p.Data))} ${s.p.Data.slice(11, 16)} · ${esc(s.p.Competizione)}</small><b>${esc(s.p.Casa)} – ${esc(s.p.Ospite)}</b></div>
       <div class="t-p"><span class="t-k">${esc(s.m.lab)}</span><span class="t-v">${pct(s.m.p)} <small>quota equa ${quota(s.m.p)}${book(s.p, s.m.k) ? ` · book ${(+book(s.p, s.m.k)).toFixed(2)}` : ''}</small></span></div>
-      ${s.manuale ? `<button class="t-x" data-id="${esc(pid(s.p))}" aria-label="Togli">×</button>` : ''}</div>`).join('')}
+      ${s.manuale ? `<button class="t-x" data-id="${esc(pid(s.p))}" aria-label="Togli">×</button>` : ''}${conSisal ? qsCampo(pid(s.p), s.m.k, s.m.p) : ''}</div>`).join('')}
     <div class="t-f"><div><small>Probabilità che escano tutte</small><b>${(tot * 100).toFixed(tot < 0.1 ? 1 : 0)}%</b></div>
       <div><small>Quota equa totale</small><b>${quota(tot)}</b></div></div>
-    <p class="note">Confronta la quota equa con quella che ti offre Sisal: se Sisal paga di più, secondo il sistema la giocata ha valore.</p></div>`;
+    ${conSisal ? qsRiepilogo(sel.map(s => ({ id: pid(s.p), k: s.m.k, v: s.m.p }))) : '<p class="note">Confronta la quota equa con quella che ti offre Sisal: se Sisal paga di più, secondo il sistema la giocata ha valore. Per scriverla e avere la puntata consigliata, aggiungi le giocate alla tua schedina.</p>'}</div>`;
 }
 
+let PROPOSTA = [];
 function schedina() {
   if (!DATA) return;
   const soglia = +$('#s-soglia').value / 100, modo = $('#s-modo').value, qmin = +$('#s-qmin').value, max = +$('#s-max').value;
@@ -312,15 +349,67 @@ function schedina() {
   });
   scelte.sort((a, b) => modo === 'quota' ? a.m.p - b.m.p : b.m.p - a.m.p);
   const sel = scelte.slice(0, max).sort((a, b) => a.p.Data.localeCompare(b.p.Data));
+  PROPOSTA = sel;
   $('#s-out').innerHTML = ticket('Schedina proposta', sel,
     `Nessuna giocata supera il ${Math.round(soglia * 100)}% con quota equa almeno ${qmin.toFixed(2)}. Abbassa la soglia, la quota minima o aggiungi altri mercati o competizioni.`) +
+    (sel.length ? '<button class="btn-sec" id="s-copia">Copia nella tua schedina (per scrivere le quote Sisal)</button>' : '') +
     `<p class="note">Partite considerate: ${P.length} · con almeno una giocata valida: ${scelte.length}.</p>`;
+  const cp = $('#s-copia'); if (cp) cp.onclick = () => { PROPOSTA.forEach(s => { MIA = MIA.filter(x => x.id !== pid(s.p)); MIA.push({ id: pid(s.p), k: s.m.k }); }); contaMia(); syncSel(); schedina(); $('#s-mia').scrollIntoView({ behavior: 'smooth' }); };
   const mie = MIA.map(x => { const p = DATA.partite.find(q => pid(q) === x.id); const m = p && mercatiDi(p).find(m => m.k === x.k); return p && m ? { p, m, manuale: true } : null; }).filter(Boolean)
     .sort((a, b) => a.p.Data.localeCompare(b.p.Data));
-  $('#s-mia').innerHTML = ticket('La tua schedina', mie, 'Vuota. Nella scheda Partite apri una partita e tocca una percentuale per aggiungerla.') +
+  LSset('mia', MIA); valore();
+  $('#s-mia').innerHTML = ticket('La tua schedina', mie, 'Vuota. Nella scheda Partite apri una partita e tocca una percentuale per aggiungerla, oppure usa "Valore del giorno" qui sopra.', true) +
     (mie.length ? '<button class="btn-sec" id="s-svuota">Svuota</button>' : '');
   document.querySelectorAll('#s-mia .t-x').forEach(b => b.onclick = () => { MIA = MIA.filter(x => x.id !== b.dataset.id); contaMia(); schedina(); syncSel(); });
   const sv = $('#s-svuota'); if (sv) sv.onclick = () => { MIA = []; contaMia(); schedina(); syncSel(); };
+}
+
+
+// ---------------------------------------------------------------- valore del giorno
+// tutte le giocate (1X2 e Over/Under della linea quotata) dove il bookmaker paga più della quota equa del sistema
+const oraIT = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 16).replace(' ', 'T');
+function valoreLista() {
+  const ora = oraIT(), g = $('#v-giorni').value, oggi = oggiKey();
+  const domani = new Date(new Date(oggi + 'T12:00').getTime() + 864e5).toISOString().slice(0, 10);
+  const okG = k => g === 'tutti' || k === oggi || (g === '2' && k === domani);
+  const L = [];
+  const prova = (o) => { if (o.v > 0 && o.bk && o.v * o.bk - 1 > 0 && o.v >= 0.2) L.push({ ...o, ev: o.v * o.bk - 1 }); };
+  (DATA ? DATA.partite : []).forEach(p => {
+    if (p.Data.slice(0, 16) <= ora || !okG(dKey(p.Data))) return;
+    const q = p.Quote || {}, mk = mercatiDi(p);
+    const keys = ['1', 'X', '2'].concat(q.linea != null ? ['Over ' + q.linea, 'Under ' + q.linea] : []);
+    keys.forEach(k => { const m = mk.find(x => x.k === k); if (m) prova({ tipo: 'P', id: pid(p), k, lab: m.lab, v: m.p, bk: book(p, k), data: p.Data, comp: p.Competizione, casa: p.Casa, ospite: p.Ospite, fonte: p['Fonte quote'] }); });
+  });
+  if (typeof MONDO !== 'undefined' && MONDO) MONDO.partite.forEach(p => {
+    if (p.data <= ora || !okG(dKey(p.data))) return;
+    const q = p.quote || {}, keys = ['1', 'X', '2'].concat(q.linea != null ? ['Over ' + q.linea, 'Under ' + q.linea] : []);
+    const pp = { ...p.p };
+    if (q.linea != null && pp['Over ' + q.linea] == null) return keys.slice(0, 3).forEach(k => prova(mondoVal(p, k, pp)));
+    keys.forEach(k => prova(mondoVal(p, k, pp)));
+  });
+  return L.sort((a, b) => b.ev - a.ev);
+}
+function mondoVal(p, k, pp) {
+  const sez = p.comp.startsWith('naz.') ? 'naz' : (['1', 'X', '2'].includes(k) && ((MONDO.leghe[p.comp] || {}).sez || '').includes('N')) ? '1x2' : 'gol';
+  return { tipo: 'M', sez, id: 'M|' + p.id, k, lab: k, v: pp[k], bk: spBook(p, k), data: p.data, comp: spNome(p.comp), casa: p.casa, ospite: p.ospite, fonte: p.fonte };
+}
+function valore() {
+  if (!DATA) return;
+  const L = valoreLista(), n = +$('#v-quanti').value;
+  const presa = o => o.tipo === 'P' ? MIA.some(x => x.id === o.id && x.k === o.k) : (typeof SPSEL !== 'undefined' && SPSEL[o.sez].some(x => x.id === o.id && x.k === o.k));
+  $('#v-lista').innerHTML = L.length ? L.slice(0, n).map((o, i) => `<div class="v-r">
+      <div class="v-m"><small>${fmtDay(dKey(o.data))} ${o.data.slice(11, 16)} · ${esc(o.comp)}</small><b>${esc(o.casa)} – ${esc(o.ospite)}</b></div>
+      <div class="v-k"><span class="t-k">${esc(o.lab)}</span><small>${pct(o.v)} · equa ${quota(o.v)} · ${esc(o.fonte || 'book')} ${(+o.bk).toFixed(2)}</small></div>
+      <div class="v-e ${o.ev >= 0.03 ? 'pos' : ''}">+${(o.ev * 100).toFixed(1)}%</div>
+      <button class="v-add${presa(o) ? ' on' : ''}" data-i="${i}" aria-label="Aggiungi alla schedina">${presa(o) ? '✓' : '+'}</button></div>`).join('') +
+      `<p class="note">${L.length} giocate con valore${L.length > n ? `, ne vedi ${n}` : ''}. Il valore è calcolato sulle quote ${'DraftKings o media dei bookmaker'}: su Sisal controlla che la quota sia almeno uguale (o più alta) prima di giocare. Sotto il 3% il vantaggio è piccolo e può essere solo errore del modello. Le giocate delle sezioni Speciali e Nazionali finiscono nella schedina di quella sezione.</p>`
+    : '<div class="empty">Nessuna giocata con valore in questo periodo. Prova "Prossimi 2 giorni" o "Tutti".</div>';
+  document.querySelectorAll('#v-lista .v-add').forEach(b => b.onclick = () => {
+    const o = L[+b.dataset.i];
+    if (o.tipo === 'P') { const i = MIA.findIndex(x => x.id === o.id && x.k === o.k); if (i >= 0) MIA.splice(i, 1); else { MIA = MIA.filter(x => x.id !== o.id); MIA.push({ id: o.id, k: o.k }); } contaMia(); syncSel(); }
+    else { const S = SPSEL[o.sez], i = S.findIndex(x => x.id === o.id && x.k === o.k); if (i >= 0) S.splice(i, 1); else { SPSEL[o.sez] = S.filter(x => x.id !== o.id); SPSEL[o.sez].push({ id: o.id, k: o.k }); } LSset('spsel', SPSEL); }
+    const y = window.scrollY; schedina(); if (typeof spRender === 'function') spRender(); window.scrollTo(0, y);
+  });
 }
 
 function initSchedina() {
@@ -334,7 +423,9 @@ function initSchedina() {
   $('#s-fam').innerHTML = Object.entries(FAM).map(([k, v]) => `<label class="chk"><input type="checkbox" class="s-fam" value="${k}" ${['esito', 'gol', 'combo', 'multigol'].includes(k) ? 'checked' : ''}> ${v}</label>`).join('');
   document.querySelectorAll('#v-schedina select, #v-schedina input').forEach(x => x.oninput = x.onchange = schedina);
   $('#s-modo').onchange = () => { if ($('#s-modo').value === 'gruppi' && +$('#s-soglia').value > 40) $('#s-soglia').value = 30; schedina(); };
-  schedina();
+  ['#v-giorni', '#v-quanti'].forEach(s => $(s).onchange = valore);
+  qsRidisegna.push(schedina);
+  contaMia(); schedina();
 }
 
 function giorni() {
