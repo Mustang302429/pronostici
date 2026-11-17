@@ -194,6 +194,7 @@ document.querySelectorAll('.seg-b').forEach(b => b.onclick = () => {
   spRender(); qsRidisegna.push(spRender);
   if (typeof valore === 'function') valore();
   verificaSp();
+  if (typeof tipRender === 'function') tipRender();
   // quando arrivano anche i dati principali, aggiungo Bundesliga ed Eredivisie alla sezione gol
   const t = setInterval(() => { if (DATA) { clearInterval(t); if (SPM === 'gol') spRender(); } }, 500);
 })();

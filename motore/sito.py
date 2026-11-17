@@ -25,9 +25,14 @@ def scrivi(prev, sch, riep, bt_metriche=None):
     out = {"aggiornato": pd.Timestamp.now(tz="Europe/Rome").strftime("%Y-%m-%dT%H:%M"),
            "partite": partite,
            "verifica": [] if riep is None else [{k: _pulisci(v) for k, v in r.items()} for _, r in riep.iterrows()],
-           "backtest": bt_metriche or {}, "backtest_extra": _extra(), "backtest_mercato": _extra("backtest_mercato.json")}
+           "backtest": bt_metriche or {}, "backtest_extra": _extra(), "backtest_mercato": _extra("backtest_mercato.json"),
+           "risultati": _risultati()}
     (DOCS / "data.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     return DOCS / "data.json"
+
+def _risultati():
+    from . import registro
+    return {k: v["ris"] for k, v in registro.carica().items() if "ris" in v and not k.startswith("M|")}
 
 def riepilogo_backtest():
     """Numeri del backtest salvati in piccolo (così non serve il CSV grande online)."""

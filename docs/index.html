@@ -60,8 +60,12 @@
     <div class="head"><h1>Schedina</h1><p class="meta">Il sistema sceglie una giocata per partita tra quelle sopra la soglia. Per i gruppi di risultati esatti abbassa la soglia a 30-40%.</p></div>
     <details class="sez" id="v-box" open><summary>Valore del giorno: dove il bookmaker paga più della quota equa</summary><div class="sez-b">
       <div class="row"><select id="v-giorni" aria-label="Periodo"><option value="1">Oggi</option><option value="2" selected>Oggi e domani</option><option value="tutti">Tutti i giorni</option></select>
+        <select id="v-tipo" aria-label="Fascia di quota"><option value="fav" selected>Quote fino a 2,50</option><option value="sing">Singole 1,70–2,20</option><option value="tutte">Tutte, anche sfavorite</option></select>
         <select id="v-quanti" aria-label="Quante"><option>10</option><option selected>20</option><option value="1000">Tutte</option></select></div>
       <div id="v-lista"></div></div></details>
+    <details class="sez" id="m-box"><summary>Quote in calo: dove si sta spostando il mercato</summary><div class="sez-b">
+      <div class="row"><select id="m-giorni" aria-label="Periodo"><option value="2" selected>Oggi e domani</option><option value="tutti">Tutti i giorni</option></select></div>
+      <div id="m-lista"></div></div></details>
     <div class="s-grid">
       <div class="s-opt">
         <div class="row">
@@ -139,6 +143,18 @@
 
   <section id="v-verifica" class="view">
     <div class="head"><h1>Verifica</h1><p class="meta">Quanto ci prende davvero il sistema</p></div>
+    <details class="sez" id="t-box" open><summary>Tipster a confronto: Pengwin e altri</summary><div class="sez-b">
+      <p class="note">Quando un tipster pubblica una giocata (sul suo canale Telegram, nei video o su Mondo Pengwin), scrivila qui: vedi subito se il sistema è d'accordo e, partita dopo partita, il suo bilancio vero.</p>
+      <div class="t-f2">
+        <label class="lab">Tipster<input id="t-nome" list="t-nomi" autocomplete="off" placeholder="Pengwin"></label><datalist id="t-nomi"></datalist>
+        <label class="lab">Cerca partita<input id="t-cerca" type="search" placeholder="es. Inter, Serie A, Italia"></label>
+        <label class="lab t-w">Partita<select id="t-partita"></select></label>
+        <label class="lab t-w">Giocata<select id="t-merc"></select></label>
+        <label class="lab">Quota<input id="t-quota" inputmode="decimal" placeholder="es. 1,85"></label>
+        <button type="button" class="btn" id="t-salva">Salva giocata</button>
+      </div>
+      <p class="t-ant" id="t-ant"></p>
+      <div id="t-lista"></div></div></details>
     <h2>Pronostici emessi e verificati</h2>
     <div id="verifica"></div>
     <div id="verifica-sp" class="tbl"></div>
@@ -167,7 +183,10 @@
       <p>Quando ci sono le quote (media dei bookmaker da football-data, oppure DraftKings tramite ESPN, gratuite), il sistema le pulisce dal margine e le mescola con il modello (90% mercato, 10% modello: è il peso che ha funzionato meglio nel backtest). Poi ricalcola i gol attesi delle due squadre in modo che <b>tutti</b> i mercati derivino dalla stessa partita: risultati esatti, gruppi, multigol, tempi, combo. Per questo una doppia chance come X2 non può più avere una quota equa più alta del solo 2. Le quote Sisal non si possono leggere in automatico (il sito blocca le richieste dall'estero, da dove gira l'aggiornamento), ma le quote italiane sono molto simili alla media.</p>
       <h2>Quota Sisal, valore e puntata</h2>
       <p>Nella tua schedina (anche in Speciali e Nazionali) puoi scrivere la quota che vedi su Sisal. L'app calcola il <b>valore atteso</b>: probabilità del sistema × quota Sisal − 1. Se è positivo, Sisal paga più di quanto vale la giocata. La <b>puntata consigliata</b> è un quarto del criterio di Kelly (la puntata che in teoria fa crescere di più il conto), mai oltre il 5% del budget che scrivi: è prudente apposta, perché anche il modello sbaglia. Quote e budget restano salvati solo sul tuo telefono.</p>
-      <p><b>Valore del giorno</b> (in Schedina) mette in fila le giocate dove DraftKings o la media dei bookmaker pagano più della quota equa. Su Sisal la quota può essere diversa: controlla che sia almeno uguale prima di giocare.</p>
+      <p><b>Valore del giorno</b> (in Schedina) mette in fila le giocate dove DraftKings o la media dei bookmaker pagano più della quota equa. Su Sisal la quota può essere diversa: controlla che sia almeno uguale prima di giocare. Di base mostra solo quote fino a 2,50: nel backtest 2025/26 (2.667 partite) il "valore" trovato sulle sfavorite a quota 3 o più era quasi sempre un errore del modello, perché quelle squadre vincevano meno di quanto stimato. C'è anche la fascia "Singole 1,70–2,20", quella su cui lavora di più il Pengwin.</p>
+      <p><b>Margine del bookmaker</b>: dalla v6.2 il sistema lo toglie col metodo "potenza", che carica più margine sulle quote alte (come fanno davvero i bookmaker). Nel backtest le sfavorite a quota 6+ passano da 11,5% stimato a 10,0% (reale 9,5%) e i favoriti da 66% a 68% (reale 69%).</p>
+      <p><b>Quote in calo</b>: a ogni aggiornamento il sistema salva le quote. Se una quota scende di almeno il 5% dalla prima volta che l'ha vista, la trovi in Schedina e nelle schede partita. Di solito vuol dire notizie (formazioni, assenze) o soldi "informati" su quell'esito.</p>
+      <p><b>Tipster a confronto</b> (in Verifica): scrivi la giocata di un tipster e l'app la confronta col sistema, la chiude da sola col risultato e tiene il bilancio (vinte, profitto, resa), anche separando le volte in cui il sistema era d'accordo. Le giocate non si leggono in automatico: il sito Mondo Pengwin blocca i programmi con un controllo anti-bot e il canale Telegram è ad accesso su richiesta.</p>
       <p><b>Aggiornamenti</b>: sei al giorno (circa 06:15, 11:45, 16:15, 19:40, 23:35, più 13:20 nel weekend). Quello delle 19:40 prende le formazioni ufficiali delle partite delle 20:45. GitHub a volte parte con qualche minuto di ritardo.</p>
       <h2>Risultati esatti a gruppi</h2>
       <p>Multi Esiti 1-5, Cluster risultati esatti e Multigol sono i gruppi standard ADM, uguali su Sisal, Lottomatica e Snai. Ogni probabilità è la somma dei risultati esatti del gruppo. In evidenza trovi i gruppi più probabili da 2, 3 e 4 risultati e il "cluster su misura" con i risultati più probabili messi insieme.</p>
@@ -185,6 +204,7 @@
 <footer class="wrap foot">Aggiornamento automatico più volte al giorno · solo a scopo informativo</footer>
 <script src="app.js"></script>
 <script src="speciali.js"></script>
+<script src="tipster.js"></script>
 <script>try { if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); } catch (e) {}</script>
 </body>
 </html>

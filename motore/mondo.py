@@ -210,6 +210,8 @@ def costruisci(oggi=None, giorni=11):
     rec = gioc[gioc.data >= oggi - pd.Timedelta(days=365)]
     base = ((rec.gc + rec.go) > 2.5).groupby(rec.comp).mean().to_dict()
     partite = []
+    from . import registro
+    reg = registro.carica()
     for r in fut.itertuples():
         quote = dk.get(r.id)
         p0, p = prepara(m, r, quote, base.get(r.comp))
@@ -240,13 +242,29 @@ def costruisci(oggi=None, giorni=11):
     except Exception as ex:
         print(f"[mondo] nazionali non disponibili: {ex}", flush=True)
         rn = pd.DataFrame(columns=["id", "gc", "go"])
+    for p in partite:   # quota di apertura (movimento quote) e chiave per il risultato finale
+        uid = ("naz." if p["comp"].startswith("naz.") else "") + str(p["id"])
+        p["apertura"] = registro.registra(reg, "M|" + str(p["id"]), p["data"], p.get("quote"), p.get("fonte"), uid=uid)
     ris = pd.concat([gioc[["id", "gc", "go", "htc", "hto"]].assign(id=lambda x: x.id.astype(str)), rn], ignore_index=True)
     try:
         verifica = archivia_e_verifica(partite, leghe, ris)
     except Exception as ex:
         print(f"[mondo] verifica non riuscita: {ex}", flush=True); verifica = {}
+    risultati = {}
+    try:
+        ora = pd.Timestamp.now(tz="Europe/Rome").tz_localize(None)
+        rr = ris.drop_duplicates("id", keep="last").set_index("id")
+        for k, v in reg.items():
+            if not k.startswith("M|"): continue
+            if "ris" not in v and v.get("uid") in rr.index and pd.Timestamp(v["data"]) < ora:
+                x = rr.loc[v["uid"]]
+                v["ris"] = [None if pd.isna(x.get(c)) else int(x.get(c)) for c in ("gc", "go", "htc", "hto")]
+            if "ris" in v: risultati[k[2:]] = v["ris"]
+        registro.salva(reg)
+    except Exception as ex:
+        print(f"[mondo] registro non aggiornato: {ex}", flush=True)
     out = {"aggiornato": pd.Timestamp.now(tz="Europe/Rome").strftime("%Y-%m-%dT%H:%M"),
-           "leghe": leghe, "partite": sorted(partite, key=lambda x: x["data"]), "verifica": verifica, "backtest": _backtest()}
+           "risultati": risultati, "leghe": leghe, "partite": sorted(partite, key=lambda x: x["data"]), "verifica": verifica, "backtest": _backtest()}
     f = BASE / "docs" / "mondo.json"
     f.write_text(json.dumps(_pulisci(out), ensure_ascii=False), encoding="utf-8")
     print(f"[mondo] FATTO: {len(partite)} partite in docs/mondo.json", flush=True)

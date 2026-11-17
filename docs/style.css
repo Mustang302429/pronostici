@@ -198,3 +198,21 @@ th.n,td.n{text-align:right}
 .v-add{width:36px;height:36px;border-radius:50%;border:1px solid var(--acc);background:none;color:var(--acc);font-size:20px;font-weight:700;cursor:pointer}
 .v-add.on{background:var(--acc);color:var(--acc-ink)}
 @media (max-width:480px){.v-r{grid-template-columns:minmax(0,1fr) auto auto}.v-k{grid-column:1 / 2;grid-row:2}}
+/* v6.2: movimento quote e tipster */
+.mv{font-size:var(--text-xs,12px);font-weight:700;white-space:nowrap}.mv.giu{color:#ffb347}.mv.su{color:var(--mut)}
+.v-e.giu{color:#ffb347}.warn-t{color:var(--warn)!important}
+.tag.mvt{color:#ffb347;border-color:rgba(255,179,71,.4)}
+.t-f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3);align-items:end;margin-top:var(--s3)}
+.t-f2 .t-w{grid-column:1 / -1}
+.t-f2 input{background:var(--surf);border:1px solid var(--line);border-radius:8px;padding:var(--s2) var(--s3);font-size:var(--text-sm);min-height:40px;color:var(--text);width:100%;min-width:0}
+.t-f2 select{width:100%;min-width:0}
+.btn{min-height:40px;border-radius:8px;border:0;background:var(--acc);color:var(--acc-ink);font-weight:700;padding:var(--s2) var(--s4);cursor:pointer}
+.t-ant{font-size:var(--text-sm);color:var(--mut);margin:var(--s3) 0 0;min-height:1.2em}
+.t-r{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto auto;gap:var(--s3);align-items:center;padding:var(--s2) 0;border-bottom:1px solid var(--line)}
+.t-r small{color:var(--mut);font-size:var(--text-xs,12px)}.t-r > div:first-child small{display:block}.t-r b{overflow-wrap:anywhere}
+.t-s{font-size:var(--text-sm);text-align:right}
+.t-man{display:flex;gap:4px}.t-man button{border:1px solid var(--line);background:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:var(--text-xs,12px)}
+.t-x{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--mut);cursor:pointer;font-size:18px}
+#t-lista .tbl{overflow-x:auto;margin-bottom:var(--s3)}
+@media (max-width:480px){.t-r{grid-template-columns:minmax(0,1fr) auto auto}.t-r > div:nth-child(2){grid-column:1 / 2;grid-row:2}}
+#verifica,#backtest{overflow-x:auto}#t-box,#t-box .sez-b{min-width:0;max-width:100%}

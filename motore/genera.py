@@ -13,6 +13,7 @@ from .calendario import prossime
 from .contesto import scheda
 from .extra import Tempi, Cartellini, Corner, Tiri, TiriPorta, combo
 from .gruppi import gruppi
+from . import registro
 from .mercato import quote_espn, obiettivi, allinea, senza_margine
 from .calendario import ESPN_LEGHE
 from .backtest import metriche, calibrazione
@@ -63,6 +64,7 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
         if c not in cal: cal[c] = None
     print("[5/5] Calcolo i pronostici e scrivo il report...", flush=True)
     righe, schede, arch = [], [], []
+    reg = registro.carica()
     for r in cal.itertuples():
         p1 = m.mercati(r.casa, r.ospite, r.comp, r.neutro)
         p2m = m.mercati(r.casa, r.ospite, r.comp, r.neutro, r.corr_casa, r.corr_ospite)   # modello (ramo 1 + ramo 2)
@@ -104,6 +106,9 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
         riga["Solo modello 1-X-2"] = f"{p2m['1']:.0%}-{p2m['X']:.0%}-{p2m['2']:.0%}"
         riga["Fonte quote"] = fonte or ""
         riga["Quote"] = {k: round(float(v), 2) for k, v in (quote or {}).items() if k != "fonte_quote" and v is not None and pd.notna(v)}
+        chiave = f"{pd.Timestamp(r.data).strftime('%Y-%m-%dT%H:%M')}|{r.casa_espn}|{r.ospite_espn}"
+        riga["Apertura"] = registro.registra(reg, chiave, pd.Timestamp(r.data).strftime('%Y-%m-%dT%H:%M'), quote, fonte,
+                                             comp=r.comp, casa=r.casa, ospite=r.ospite)
         imp = senza_margine(*q) if quote else None
         if imp is not None:
             riga["Bookmaker 1"], riga["Bookmaker X"], riga["Bookmaker 2"] = imp
@@ -139,8 +144,20 @@ def costruisci(oggi=None, giorni=11, aggiorna=True, ramo2=True):
                      "corr_casa": r.corr_casa, "corr_ospite": r.corr_ospite, "q1": q[0], "qx": q[1], "q2": q[2],
                      **{f"R2_{k}": riga["extra"].get(v) for k, v in [("C_O95", "Corner Over 9.5"), ("C_1", "1X2 corner 1"), ("TP_O85", "Tiri in porta Over 8.5")]}})
     archivio.salva(pd.DataFrame(arch))
+    _risultati(reg, df); registro.salva(reg)
     _, riep = archivio.verifica(df)
     return pd.DataFrame(righe), pd.DataFrame(schede), riep
+
+def _risultati(reg, df):
+    """Scrive nel registro il risultato delle partite già giocate (serve alla verifica dei tipster)."""
+    ora = pd.Timestamp.now(tz="Europe/Rome").tz_localize(None)
+    d = df[df.gc.notna()].copy(); d["giorno"] = pd.to_datetime(d.data).dt.strftime("%Y-%m-%d")
+    idx = {(g, c, a, b): x for g, c, a, b, x in zip(d.giorno, d.comp, d.casa, d.ospite, d[["gc", "go", "htc", "hto"]].values.tolist())}
+    for k, v in reg.items():
+        if "ris" in v or k.startswith("M|") or "casa" not in v or pd.Timestamp(v["data"]) > ora: continue
+        x = idx.get((v["data"][:10], v["comp"], v["casa"], v["ospite"]))
+        if x is not None:
+            v["ris"] = [None if pd.isna(n) else int(n) for n in x]
 
 # ------------------------------------------------------------------ Excel
 H = PatternFill("solid", fgColor="1F3A5F"); W = Font(color="FFFFFF", bold=True); THIN = Side(style="thin", color="D0D7E2")

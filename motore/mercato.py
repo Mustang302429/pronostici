@@ -28,8 +28,19 @@ def americana(x):
 
 
 def senza_margine(*quote):
+    """Toglie il margine del bookmaker col metodo "potenza" (p_i = (1/q_i)^k, somma = 1).
+    Il metodo proporzionale lascia troppa probabilità alle squadre sfavorite (il bookmaker mette
+    più margine sulle quote alte): nel backtest 2025/26 su 2.667 partite le sfavorite a quota 6+
+    risultavano 11,5% contro 9,5% reale; col metodo potenza 10,0%. Log-loss 0,9752 -> 0,9744."""
     if any(q is None or not np.isfinite(q) or q <= 1 for q in quote): return None
-    inv = np.array([1 / q for q in quote]); return inv / inv.sum()
+    inv = np.array([1 / q for q in quote])
+    if inv.sum() <= 1: return inv / inv.sum()
+    lo, hi = 1.0, 3.0
+    for _ in range(60):
+        k = (lo + hi) / 2
+        if (inv ** k).sum() > 1: lo = k
+        else: hi = k
+    p = inv ** ((lo + hi) / 2); return p / p.sum()
 
 
 def _espn_una(args):

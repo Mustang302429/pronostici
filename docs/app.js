@@ -62,12 +62,19 @@ function mercatiDi(p) {
   return (p._mk = L);
 }
 // quote reali del bookmaker (quando disponibili) per i mercati principali
-function book(p, k) {
-  const q = p.Quote || {};
+function qDi(q, k) {
+  q = q || {};
   if (k === '1') return q.q1; if (k === 'X') return q.qx; if (k === '2') return q.q2;
   if (q.linea != null && k === 'Over ' + q.linea) return q.qover;
   if (q.linea != null && k === 'Under ' + q.linea) return q.qunder;
   return null;
+}
+const book = (p, k) => qDi(p.Quote, k);
+// movimento quote: quota di apertura (prima vista dal sistema) contro quota attuale
+function movQ(ape, ora) { return ape > 1 && ora > 1 ? ora / ape - 1 : null; }
+function movTag(ape, ora, soglia = 0.03) {
+  const m = movQ(ape, ora); if (m == null || Math.abs(m) < soglia) return '';
+  return `<span class="mv ${m < 0 ? 'giu' : 'su'}" title="Quota di apertura ${(+ape).toFixed(2)}">${m < 0 ? '↓' : '↑'} da ${(+ape).toFixed(2)}</span>`;
 }
 const pid = p => p.Data + '|' + p.Casa + '|' + p.Ospite;
 
@@ -158,6 +165,8 @@ function card(p) {
     tags.push(`<span class="tag bad">Modello diverso dal mercato sul ${m ? m[1] : ''}: ${d ? d[1].replace('-', '−') : ''} punti</span>`);
   }
   if (p['Fonte quote']) tags.push(`<span class="tag acc">Quote ${esc(p['Fonte quote'])}</span>`);
+  const cal = ['1', 'X', '2'].map(k => [k, movQ(qDi(p.Apertura, k), book(p, k))]).filter(x => x[1] != null && x[1] <= -0.08).sort((a, b) => a[1] - b[1])[0];
+  if (cal) tags.push(`<span class="tag mvt">Quota del ${cal[0]} in calo ${Math.round(cal[1] * 100)}%</span>`);
   if (p['Affidabilità dati'] !== 'ALTA') tags.push(`<span class="tag">Affidabilità ${esc(p['Affidabilità dati'].toLowerCase())}</span>`);
   if (p.Formazioni && /probabile|ufficiale/.test(p.Formazioni)) tags.push(`<span class="tag acc">Formazione ${esc(p.Formazioni)}</span>`);
   const id = pid(p), aperta = OPEN.has(id);
@@ -188,6 +197,7 @@ function dettagli(p) {
   const esiti = griglia(p, ['1', 'X', '2', '1X', 'X2', '12'].map(k => [k, k, k === '12' ? p['1'] + p['2'] : p[k]]), best);
   const gol = griglia(p, ['0.5', '1.5', '2.5', '3.5', '4.5'].flatMap(s => [['Over ' + s, 'Over ' + s, p['Over ' + s] ?? e['Over ' + s]], ['Under ' + s, 'Under ' + s, p['Under ' + s] ?? e['Under ' + s]]]).concat([['Gol', 'Gol', p.Gol], ['NoGol', 'NoGol', p.NoGol]]), best);
   const quoteTxt = p['Fonte quote'] ? `<span>Quote ${esc(p['Fonte quote'])}</span><span>1 ${n(Q.q1)} · X ${n(Q.qx)} · 2 ${n(Q.q2)}${Q.linea != null ? ` · Over ${Q.linea} ${n(Q.qover)} · Under ${Q.linea} ${n(Q.qunder)}` : ''}</span>
+      ${p.Apertura ? `<span>Apertura (${fmtDay(dKey(p.Apertura.da))} ${p.Apertura.da.slice(11, 16)})</span><span>1 ${n(p.Apertura.q1)} · X ${n(p.Apertura.qx)} · 2 ${n(p.Apertura.q2)}${p.Apertura.linea != null ? ` · Over ${p.Apertura.linea} ${n(p.Apertura.qover)} · Under ${p.Apertura.linea} ${n(p.Apertura.qunder)}` : ''} ${['1', 'X', '2'].map(k => movTag(qDi(p.Apertura, k), book(p, k)) ? `<b>${k}</b> ${movTag(qDi(p.Apertura, k), book(p, k))}` : '').join(' ')}</span>` : ''}
       <span>Bookmaker 1-X-2 (senza margine)</span><span>${pct(p['Bookmaker 1'])} · ${pct(p['Bookmaker X'])} · ${pct(p['Bookmaker 2'])}</span>` : `<span>Quote</span><span>non ancora disponibili (di solito escono 2-4 giorni prima)</span>`;
   const dis = p['Disaccordo col mercato'] ? `<span>Modello vs mercato</span><span>${esc(p['Disaccordo col mercato'].replace('-', '−'))}</span>` : '';
   const principali = `<p class="hint">Tocca una casella per aggiungerla alla tua schedina. "equa" = quota giusta secondo il sistema; "book" = quota reale del bookmaker (verde se paga più dell'equa).</p>
@@ -366,19 +376,22 @@ function schedina() {
 
 
 // ---------------------------------------------------------------- valore del giorno
-// tutte le giocate (1X2 e Over/Under della linea quotata) dove il bookmaker paga più della quota equa del sistema
+// giocate (1X2 e Over/Under della linea quotata) dove il bookmaker paga più della quota equa del sistema.
+// Di base solo quote fino a 2,50: nel backtest 2025/26 il "valore" sulle sfavorite (quota 3+) era quasi sempre
+// un errore del modello, non del bookmaker (le sfavorite vincevano meno di quanto stimato).
+const FASCE = { fav: [1.01, 2.5], sing: [1.7, 2.2], tutte: [1.01, 1000] };
 const oraIT = () => new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 16).replace(' ', 'T');
-function valoreLista() {
-  const ora = oraIT(), g = $('#v-giorni').value, oggi = oggiKey();
+function candidati(g) {     // tutte le giocate future con quota reale (partite principali + speciali/nazionali)
+  const ora = oraIT(), oggi = oggiKey();
   const domani = new Date(new Date(oggi + 'T12:00').getTime() + 864e5).toISOString().slice(0, 10);
   const okG = k => g === 'tutti' || k === oggi || (g === '2' && k === domani);
   const L = [];
-  const prova = (o) => { if (o.v > 0 && o.bk && o.v * o.bk - 1 > 0 && o.v >= 0.2) L.push({ ...o, ev: o.v * o.bk - 1 }); };
+  const prova = o => { if (o.v > 0 && o.bk > 1) L.push({ ...o, ev: o.v * o.bk - 1, mv: movQ(o.ape, o.bk) }); };
   (DATA ? DATA.partite : []).forEach(p => {
     if (p.Data.slice(0, 16) <= ora || !okG(dKey(p.Data))) return;
     const q = p.Quote || {}, mk = mercatiDi(p);
     const keys = ['1', 'X', '2'].concat(q.linea != null ? ['Over ' + q.linea, 'Under ' + q.linea] : []);
-    keys.forEach(k => { const m = mk.find(x => x.k === k); if (m) prova({ tipo: 'P', id: pid(p), k, lab: m.lab, v: m.p, bk: book(p, k), data: p.Data, comp: p.Competizione, casa: p.Casa, ospite: p.Ospite, fonte: p['Fonte quote'] }); });
+    keys.forEach(k => { const m = mk.find(x => x.k === k); if (m) prova({ tipo: 'P', id: pid(p), k, lab: m.lab, v: m.p, bk: book(p, k), ape: qDi(p.Apertura, k), data: p.Data, comp: p.Competizione, casa: p.Casa, ospite: p.Ospite, fonte: p['Fonte quote'] }); });
   });
   if (typeof MONDO !== 'undefined' && MONDO) MONDO.partite.forEach(p => {
     if (p.data <= ora || !okG(dKey(p.data))) return;
@@ -387,29 +400,52 @@ function valoreLista() {
     if (q.linea != null && pp['Over ' + q.linea] == null) return keys.slice(0, 3).forEach(k => prova(mondoVal(p, k, pp)));
     keys.forEach(k => prova(mondoVal(p, k, pp)));
   });
-  return L.sort((a, b) => b.ev - a.ev);
+  return L;
+}
+function valoreLista() {
+  const [qa, qb] = FASCE[$('#v-tipo').value] || FASCE.fav;
+  return candidati($('#v-giorni').value).filter(o => o.ev > 0 && o.v >= 0.2 && o.bk >= qa && o.bk <= qb).sort((a, b) => b.ev - a.ev);
 }
 function mondoVal(p, k, pp) {
   const sez = p.comp.startsWith('naz.') ? 'naz' : (['1', 'X', '2'].includes(k) && ((MONDO.leghe[p.comp] || {}).sez || '').includes('N')) ? '1x2' : 'gol';
-  return { tipo: 'M', sez, id: 'M|' + p.id, k, lab: k, v: pp[k], bk: spBook(p, k), data: p.data, comp: spNome(p.comp), casa: p.casa, ospite: p.ospite, fonte: p.fonte };
+  return { tipo: 'M', sez, id: 'M|' + p.id, k, lab: k, v: pp[k], bk: spBook(p, k), ape: qDi(p.apertura, k), data: p.data, comp: spNome(p.comp), casa: p.casa, ospite: p.ospite, fonte: p.fonte };
 }
-function valore() {
-  if (!DATA) return;
-  const L = valoreLista(), n = +$('#v-quanti').value;
-  const presa = o => o.tipo === 'P' ? MIA.some(x => x.id === o.id && x.k === o.k) : (typeof SPSEL !== 'undefined' && SPSEL[o.sez].some(x => x.id === o.id && x.k === o.k));
-  $('#v-lista').innerHTML = L.length ? L.slice(0, n).map((o, i) => `<div class="v-r">
+const presa = o => o.tipo === 'P' ? MIA.some(x => x.id === o.id && x.k === o.k) : (typeof SPSEL !== 'undefined' && SPSEL[o.sez].some(x => x.id === o.id && x.k === o.k));
+function rigaV(o, i, destra) {
+  return `<div class="v-r">
       <div class="v-m"><small>${fmtDay(dKey(o.data))} ${o.data.slice(11, 16)} · ${esc(o.comp)}</small><b>${esc(o.casa)} – ${esc(o.ospite)}</b></div>
-      <div class="v-k"><span class="t-k">${esc(o.lab)}</span><small>${pct(o.v)} · equa ${quota(o.v)} · ${esc(o.fonte || 'book')} ${(+o.bk).toFixed(2)}</small></div>
-      <div class="v-e ${o.ev >= 0.03 ? 'pos' : ''}">+${(o.ev * 100).toFixed(1)}%</div>
-      <button class="v-add${presa(o) ? ' on' : ''}" data-i="${i}" aria-label="Aggiungi alla schedina">${presa(o) ? '✓' : '+'}</button></div>`).join('') +
-      `<p class="note">${L.length} giocate con valore${L.length > n ? `, ne vedi ${n}` : ''}. Il valore è calcolato sulle quote ${'DraftKings o media dei bookmaker'}: su Sisal controlla che la quota sia almeno uguale (o più alta) prima di giocare. Sotto il 3% il vantaggio è piccolo e può essere solo errore del modello. Le giocate delle sezioni Speciali e Nazionali finiscono nella schedina di quella sezione.</p>`
-    : '<div class="empty">Nessuna giocata con valore in questo periodo. Prova "Prossimi 2 giorni" o "Tutti".</div>';
-  document.querySelectorAll('#v-lista .v-add').forEach(b => b.onclick = () => {
+      <div class="v-k"><span class="t-k">${esc(o.lab)}</span><small>${pct(o.v)} · equa ${quota(o.v)} · ${esc(o.fonte || 'book')} ${(+o.bk).toFixed(2)} ${movTag(o.ape, o.bk)}</small>${o.bk >= 3 ? `<small class="warn-t">Sfavorita: vince circa 1 volta su ${Math.max(2, Math.round(1 / o.v))}</small>` : ''}</div>
+      ${destra}
+      <button class="v-add${presa(o) ? ' on' : ''}" data-i="${i}" aria-label="Aggiungi alla schedina">${presa(o) ? '✓' : '+'}</button></div>`;
+}
+function bindAdd(root, L) {
+  document.querySelectorAll(root + ' .v-add').forEach(b => b.onclick = () => {
     const o = L[+b.dataset.i];
     if (o.tipo === 'P') { const i = MIA.findIndex(x => x.id === o.id && x.k === o.k); if (i >= 0) MIA.splice(i, 1); else { MIA = MIA.filter(x => x.id !== o.id); MIA.push({ id: o.id, k: o.k }); } contaMia(); syncSel(); }
     else { const S = SPSEL[o.sez], i = S.findIndex(x => x.id === o.id && x.k === o.k); if (i >= 0) S.splice(i, 1); else { SPSEL[o.sez] = S.filter(x => x.id !== o.id); SPSEL[o.sez].push({ id: o.id, k: o.k }); } LSset('spsel', SPSEL); }
     const y = window.scrollY; schedina(); if (typeof spRender === 'function') spRender(); window.scrollTo(0, y);
   });
+}
+function valore() {
+  if (!DATA) return;
+  LSset('vtipo', $('#v-tipo').value);
+  const L = valoreLista(), n = +$('#v-quanti').value, t = $('#v-tipo').value;
+  const spiega = t === 'sing' ? 'Solo singole a quota 1,70–2,20, la fascia preferita dai tipster come il Pengwin: si vince circa una volta su due, e la puntata consigliata nella tua schedina tiene il rischio basso.'
+    : t === 'tutte' ? 'Attenzione: con le sfavorite (quota 3 o più) il valore è spesso un errore del modello e non del bookmaker. Nel backtest 2025/26 queste giocate hanno perso soldi: usale solo se hai un motivo in più (assenze, formazioni).'
+    : 'Solo quote fino a 2,50: il valore sulle sfavorite di solito è un errore del modello, quindi di base non te lo mostro (scegli "Tutte" per vederle).';
+  $('#v-lista').innerHTML = L.length ? L.slice(0, n).map((o, i) => rigaV(o, i, `<div class="v-e ${o.ev >= 0.03 ? 'pos' : ''}">+${(o.ev * 100).toFixed(1)}%</div>`)).join('') +
+      `<p class="note">${L.length} giocate con valore${L.length > n ? `, ne vedi ${n}` : ''}. ${spiega} Il valore è calcolato sulle quote DraftKings o media dei bookmaker: su Sisal controlla che la quota sia almeno uguale. Sotto il 3% il vantaggio è piccolo e può essere solo errore del modello.</p>`
+    : `<div class="empty">Nessuna giocata con valore in questa fascia di quote. Prova "Tutti i giorni" o un'altra fascia.</div><p class="note">${spiega}</p>`;
+  bindAdd('#v-lista', L);
+  movimenti();
+}
+// quote in calo dall'apertura: il mercato si sta spostando su quell'esito (notizie, formazioni, soldi "informati")
+function movimenti() {
+  const g = $('#m-giorni').value, L = candidati(g).filter(o => o.mv != null && o.mv <= -0.05).sort((a, b) => a.mv - b.mv);
+  $('#m-lista').innerHTML = L.length ? L.slice(0, 20).map((o, i) => rigaV(o, i, `<div class="v-e giu">${Math.round(o.mv * 100)}%</div>`)).join('') +
+    `<p class="note">Quote scese almeno del 5% da quando il sistema le ha viste la prima volta. Le probabilità del sistema seguono già il mercato al 90%, quindi tengono conto del calo. Una quota che scende non vuol dire che vincerà: vuol dire che chi scommette forte ci crede di più. Se una giocata è anche in "Valore del giorno", è un segnale doppio.</p>`
+    : '<div class="empty">Nessuna quota in calo di almeno il 5% in questo periodo. Il confronto parte dalla prima quota vista dal sistema: servono almeno due aggiornamenti.</div>';
+  bindAdd('#m-lista', L);
 }
 
 function initSchedina() {
@@ -423,7 +459,9 @@ function initSchedina() {
   $('#s-fam').innerHTML = Object.entries(FAM).map(([k, v]) => `<label class="chk"><input type="checkbox" class="s-fam" value="${k}" ${['esito', 'gol', 'combo', 'multigol'].includes(k) ? 'checked' : ''}> ${v}</label>`).join('');
   document.querySelectorAll('#v-schedina select, #v-schedina input').forEach(x => x.oninput = x.onchange = schedina);
   $('#s-modo').onchange = () => { if ($('#s-modo').value === 'gruppi' && +$('#s-soglia').value > 40) $('#s-soglia').value = 30; schedina(); };
-  ['#v-giorni', '#v-quanti'].forEach(s => $(s).onchange = valore);
+  $('#v-tipo').value = LS('vtipo', 'fav');
+  ['#v-giorni', '#v-quanti', '#v-tipo'].forEach(s => $(s).onchange = valore);
+  $('#m-giorni').onchange = movimenti;
   qsRidisegna.push(schedina);
   contaMia(); schedina();
 }
